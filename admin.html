@@ -482,30 +482,29 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);displ
 <div id="admin-toast"></div>
 
 <!-- Firebase SDKs -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, update, remove, get, query, orderByChild, limitToLast }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+<!-- Firebase CDK via CDN (non-module — works with onclick handlers) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
+<script>
 // ══════════════════════════════════════════════════════
 //  🔥 FIREBASE CONFIG
 // ══════════════════════════════════════════════════════
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyB56OuMztZjQ8Ev6qsm6iB7CJswn_N7fVM",
-  authDomain: "murad-s-cafe.firebaseapp.com",
-  databaseURL: "https://murad-s-cafe-default-rtdb.firebaseio.com",
-  projectId: "murad-s-cafe",
-  storageBucket: "murad-s-cafe.firebasestorage.app",
+  apiKey:            "AIzaSyB56OuMztZjQ8Ev6qsm6iB7CJswn_N7fVM",
+  authDomain:        "murad-s-cafe.firebaseapp.com",
+  databaseURL:       "https://murad-s-cafe-default-rtdb.firebaseio.com",
+  projectId:         "murad-s-cafe",
+  storageBucket:     "murad-s-cafe.firebasestorage.app",
   messagingSenderId: "438256817002",
-  appId: "1:438256817002:web:1aa2217fcf92bc48fa4b13"
+  appId:             "1:438256817002:web:1aa2217fcf92bc48fa4b13"
 };
 // ══════════════════════════════════════════════════════
 
-const app  = initializeApp(FIREBASE_CONFIG);
-const db   = getDatabase(app);
-const auth = getAuth(app);
+firebase.initializeApp(FIREBASE_CONFIG);
+const db   = firebase.database();
+const auth = firebase.auth();
 
 // ── DEFAULT MENU ──
 const DEFAULT_MENU = [
@@ -524,36 +523,42 @@ const DEFAULT_MENU = [
 ];
 
 // ── STATE ──
-let allOrders  = [];
-let allMenu    = [...DEFAULT_MENU];
+let allOrders   = [];
+let allMenu     = [...DEFAULT_MENU];
 let currentPage = 'dashboard';
 let orderFilter = 'all';
+let menuCatFilter = 'all';
 let settings    = { cafeName:'مراد كافيه', tables:30, deliveryFee:10, sound:true };
 let unsubOrders = null;
 let unsubMenu   = null;
+let unsubUsers  = null;
+let allUsers    = [];
+let editingItemId = null;
 
 // ── AUTH STATE ──
-onAuthStateChanged(auth, user => {
+auth.onAuthStateChanged(user => {
   const btn = document.querySelector('.login-btn');
   if (btn) { btn.textContent = 'دخول →'; btn.disabled = false; }
   if (user) {
     document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('sidebar').style.display = 'flex';
-    document.getElementById('main').style.display = 'flex';
-    document.getElementById('sb-username').textContent = user.email.split('@')[0];
+    document.getElementById('sidebar').style.display     = 'flex';
+    document.getElementById('main').style.display        = 'flex';
+    document.getElementById('sb-username').textContent   = user.email.split('@')[0];
     startListeners();
     loadSettings();
+    renderPage('dashboard');
+    updateBadges();
   } else {
     document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('sidebar').style.display = 'none';
-    document.getElementById('main').style.display = 'none';
-    if (unsubOrders) unsubOrders();
-    if (unsubMenu) unsubMenu();
+    document.getElementById('sidebar').style.display      = 'none';
+    document.getElementById('main').style.display         = 'none';
+    if (unsubOrders) { unsubOrders(); unsubOrders = null; }
+    if (unsubMenu)   { unsubMenu();   unsubMenu   = null; }
   }
 });
 
-// ── FIREBASE AUTH ──
-window.doLogin = async function() {
+// ── LOGIN ──
+function doLogin() {
   const email = document.getElementById('login-user').value.trim();
   const pass  = document.getElementById('login-pass').value.trim();
   const err   = document.getElementById('login-err');
@@ -561,78 +566,46 @@ window.doLogin = async function() {
 
   if (!email || !pass) {
     err.style.display = 'block';
-    err.textContent = '⚠️ أدخل البريد الإلكتروني وكلمة المرور';
+    err.textContent   = '⚠️ أدخل البريد الإلكتروني وكلمة المرور';
     setTimeout(() => err.style.display = 'none', 3000);
     return;
   }
 
-  // Convert shorthand (e.g. "admin") to full email
   const fullEmail = email.includes('@') ? email : email + '@muradcafe.com';
+  btn.textContent = '⏳ جارٍ التحقق...';
+  btn.disabled    = true;
 
-  btn.textContent = 'جارٍ التحقق...';
-  btn.disabled = true;
-
-  try {
-    await signInWithEmailAndPassword(auth, fullEmail, pass);
-    // onAuthStateChanged will handle showing the dashboard
-  } catch(e) {
-    btn.textContent = 'دخول →';
-    btn.disabled = false;
-    err.style.display = 'block';
-    const msgs = {
-      'auth/invalid-credential':    '❌ البريد الإلكتروني أو كلمة المرور غلط',
-      'auth/user-not-found':        '❌ هذا الحساب غير موجود',
-      'auth/wrong-password':        '❌ كلمة المرور غلط',
-      'auth/invalid-email':         '❌ صيغة البريد الإلكتروني غير صحيحة',
-      'auth/user-disabled':         '❌ هذا الحساب موقوف',
-      'auth/too-many-requests':     '⚠️ محاولات كثيرة — انتظر قليلاً ثم حاول مجدداً',
-      'auth/network-request-failed':'⚠️ تحقق من الاتصال بالإنترنت',
-      'auth/configuration-not-found':'⚠️ Firebase Auth غير مفعّل — فعّله من Console',
-    };
-    err.textContent = msgs[e.code] || ('❌ خطأ: ' + e.message);
-    console.error('Login error:', e.code, e.message);
-    setTimeout(() => err.style.display = 'none', 5000);
-  }
-};
-
-window.doLogout = async function() {
-  try { await signOut(auth); } catch {}
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('sidebar').style.display = 'none';
-  document.getElementById('main').style.display = 'none';
-};
-
-// ── DEMO MODE (before Firebase is configured) ──
-function initDemoMode() {
-  showToast('⚠️ وضع تجريبي — لم يُربط Firebase بعد');
-  allOrders = generateDemoOrders();
-  allMenu   = [...DEFAULT_MENU];
-  loadSettings();
-  startPolling();
-  renderPage('dashboard');
-  updateBadges();
+  auth.signInWithEmailAndPassword(fullEmail, pass)
+    .catch(e => {
+      btn.textContent = 'دخول →';
+      btn.disabled    = false;
+      const msgs = {
+        'auth/invalid-credential':     '❌ البريد أو كلمة المرور غلط',
+        'auth/user-not-found':         '❌ هذا الحساب غير موجود',
+        'auth/wrong-password':         '❌ كلمة المرور غلط',
+        'auth/invalid-email':          '❌ صيغة البريد غير صحيحة',
+        'auth/user-disabled':          '❌ هذا الحساب موقوف',
+        'auth/too-many-requests':      '⚠️ محاولات كثيرة — انتظر قليلاً',
+        'auth/network-request-failed': '⚠️ تحقق من الاتصال بالإنترنت',
+        'auth/configuration-not-found':'⚠️ فعّل Firebase Authentication من Console',
+      };
+      err.style.display = 'block';
+      err.textContent   = msgs[e.code] || ('❌ ' + e.message);
+      console.error('Login:', e.code, e.message);
+      setTimeout(() => err.style.display = 'none', 5000);
+    });
 }
-function generateDemoOrders() {
-  const statuses = ['pending','preparing','ready'];
-  return Array.from({length:5}, (_,i) => ({
-    id: 'MRD-DEMO' + (i+1),
-    type: i%2===0 ? 'table' : 'delivery',
-    table: i%2===0 ? String(i+1) : null,
-    customer: i%2!==0 ? {name:'عميل تجريبي',phone:'0500000000',address:'حي النزهة'} : null,
-    items: [{id:1,name:'إسبريسو مراد',emoji:'☕',price:15,qty:1},{id:3,name:'لاتيه بالكراميل',emoji:'🥛',price:22,qty:2}],
-    notes: '', total: 59, status: statuses[i%3],
-    createdAt: new Date(Date.now() - i*300000).toISOString()
-  }));
-}
-function startPolling() {
-  // Demo mode: just re-render every few seconds (no real-time)
-  setInterval(() => { updateBadges(); }, 5000);
+
+function doLogout() {
+  auth.signOut();
 }
 
 // ── FIREBASE LISTENERS ──
 function startListeners() {
-  // Orders: real-time
-  unsubOrders = onValue(ref(db, 'orders'), snap => {
+  // Orders
+  const ordersRef = db.ref('orders');
+  if (unsubOrders) unsubOrders();
+  unsubOrders = ordersRef.on('value', snap => {
     const prev = allOrders.length;
     const val  = snap.val();
     allOrders  = val ? Object.values(val).sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt)) : [];
@@ -640,143 +613,144 @@ function startListeners() {
     updateBadges();
     renderPage(currentPage);
   });
-  // Menu: real-time
-  unsubMenu = onValue(ref(db, 'menu'), snap => {
+
+  // Menu
+  const menuRef = db.ref('menu');
+  if (unsubMenu) unsubMenu();
+  unsubMenu = menuRef.on('value', snap => {
     const val = snap.val();
     if (val) {
       allMenu = Object.values(val);
     } else {
-      // Seed default menu
-      DEFAULT_MENU.forEach(item => set(ref(db, 'menu/' + item.id), item));
+      DEFAULT_MENU.forEach(item => db.ref('menu/' + item.id).set(item));
       allMenu = [...DEFAULT_MENU];
     }
-    if (currentPage === 'menu-mgmt') renderMenuMgmt();
+    if (currentPage === 'menu-mgmt' || currentPage === 'menu_mgmt') renderMenuMgmt();
   });
-  // Users: real-time
-  startUsersListener();
+
+  // Users
+  db.ref('users').on('value', snap => {
+    const val = snap.val();
+    allUsers = val ? Object.values(val) : [];
+    if (currentPage === 'users') renderUsers();
+  });
 }
 
 // ── FIREBASE WRITES ──
-async function fbUpdateOrderStatus(id, status) {
-  try {
-    await update(ref(db, 'orders/' + id), { status });
-    return true;
-  } catch(e) { showToast('⚠️ خطأ في التحديث: ' + e.message); return false; }
+function fbUpdateOrderStatus(id, status) {
+  return db.ref('orders/' + id).update({ status });
 }
-async function fbSaveMenuItem(item) {
-  try { await set(ref(db, 'menu/' + item.id), item); return true; }
-  catch(e) { showToast('⚠️ خطأ: ' + e.message); return false; }
+function fbSaveMenuItem(item) {
+  return db.ref('menu/' + item.id).set(item);
 }
-async function fbDeleteMenuItem(id) {
-  try { await remove(ref(db, 'menu/' + id)); return true; }
-  catch(e) { showToast('⚠️ خطأ: ' + e.message); return false; }
+function fbDeleteMenuItem(id) {
+  return db.ref('menu/' + id).remove();
 }
-async function fbSaveSettings(s) {
-  try { await set(ref(db, 'settings'), s); return true; }
-  catch(e) { showToast('⚠️ خطأ: ' + e.message); return false; }
+function fbSaveSettings(s) {
+  return db.ref('settings').set(s);
 }
 
 // ── LOAD SETTINGS ──
 function loadSettings() {
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') {
-    onValue(ref(db, 'settings'), snap => {
-      const val = snap.val();
-      if (val) {
-        settings = { ...settings, ...val };
-        applySettingsToUI();
-      }
-    });
-  }
+  db.ref('settings').on('value', snap => {
+    const val = snap.val();
+    if (val) { settings = { ...settings, ...val }; applySettingsToUI(); }
+  });
   applySettingsToUI();
 }
 function applySettingsToUI() {
-  document.getElementById('cafe-name-input').value  = settings.cafeName  || 'مراد كافيه';
-  document.getElementById('tables-count').value     = settings.tables    || 30;
-  document.getElementById('delivery-fee').value     = settings.deliveryFee || 10;
-  document.getElementById('sound-toggle').checked   = settings.sound !== false;
+  const cn = document.getElementById('cafe-name-input');
+  const tc = document.getElementById('tables-count');
+  const df = document.getElementById('delivery-fee');
+  const st = document.getElementById('sound-toggle');
+  if (cn) cn.value = settings.cafeName   || 'مراد كافيه';
+  if (tc) tc.value = settings.tables     || 30;
+  if (df) df.value = settings.deliveryFee|| 10;
+  if (st) st.checked = settings.sound !== false;
 }
 
 // ── NAV ──
-window.navTo = function(page) {
+function navTo(page) {
   currentPage = page;
   document.querySelectorAll('.sb-item').forEach(el => {
     el.classList.toggle('active', el.getAttribute('onclick') === `navTo('${page}')`);
   });
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
-  const pageEl = document.getElementById('page-' + page.replace(/-/g,'_'));
-  if (pageEl) pageEl.classList.add('active');
-  const titles = { dashboard:'لوحة الرئيسية', orders:'الطلبات الواردة', kitchen:'شاشة المطبخ', 'menu_mgmt':'إدارة القائمة', reports:'التقارير', settings:'الإعدادات', users:'إدارة المستخدمين' };
-  document.getElementById('page-title').textContent = titles[page.replace(/-/g,'_')] || page;
+  const pid = 'page-' + page.replace(/-/g,'_');
+  const el  = document.getElementById(pid);
+  if (el) el.classList.add('active');
+  const titles = {
+    dashboard:'لوحة الرئيسية', orders:'الطلبات الواردة',
+    kitchen:'شاشة المطبخ', 'menu-mgmt':'إدارة القائمة',
+    reports:'التقارير', settings:'الإعدادات', users:'إدارة المستخدمين'
+  };
+  document.getElementById('page-title').textContent = titles[page] || page;
   renderPage(page);
-};
+}
 
 function renderPage(page) {
   const p = page.replace(/-/g,'_');
-  if (p === 'dashboard')  renderDashboard();
-  else if (p === 'orders')     renderOrders();
-  else if (p === 'kitchen')    renderKitchen();
-  else if (p === 'menu_mgmt')  renderMenuMgmt();
-  else if (p === 'reports')    renderReports();
-  else if (p === 'users')      renderUsers();
+  if      (p==='dashboard') renderDashboard();
+  else if (p==='orders')    renderOrders();
+  else if (p==='kitchen')   renderKitchen();
+  else if (p==='menu_mgmt') renderMenuMgmt();
+  else if (p==='reports')   renderReports();
+  else if (p==='users')     renderUsers();
 }
-window.refreshAll = function() { renderPage(currentPage); updateBadges(); showToast('✓ تم التحديث'); };
+function refreshAll() { renderPage(currentPage); updateBadges(); showToast('✓ تم التحديث'); }
 
 // ── HELPERS ──
-function statusLabel(s) {
-  return {pending:'جديد',preparing:'يُحضَّر',ready:'جاهز',delivered:'تم التسليم',cancelled:'ملغي'}[s] || s;
+function statusLabel(s){return{pending:'جديد',preparing:'يُحضَّر',ready:'جاهز',delivered:'تم التسليم',cancelled:'ملغي'}[s]||s;}
+function timeAgo(iso){
+  const d=Math.floor((Date.now()-new Date(iso))/1000);
+  if(d<60)return 'منذ '+d+' ث';
+  if(d<3600)return 'منذ '+Math.floor(d/60)+' د';
+  return 'منذ '+Math.floor(d/3600)+' س';
 }
-function timeAgo(iso) {
-  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
-  if (diff < 60)   return 'منذ ' + diff + ' ث';
-  if (diff < 3600) return 'منذ ' + Math.floor(diff/60) + ' د';
-  return 'منذ ' + Math.floor(diff/3600) + ' س';
-}
-function formatTime(iso) {
-  return new Date(iso).toLocaleTimeString('ar-SA', {hour:'2-digit',minute:'2-digit'});
-}
+function formatTime(iso){return new Date(iso).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});}
 
 // ── DASHBOARD ──
-function renderDashboard() {
-  const today = new Date().toDateString();
-  const todayO = allOrders.filter(o => new Date(o.createdAt).toDateString() === today);
-  const pending = allOrders.filter(o => o.status === 'pending').length;
-  const revenue = todayO.filter(o => o.status === 'delivered').reduce((s,o) => s+o.total, 0);
-  const active  = allOrders.filter(o => ['pending','preparing','ready'].includes(o.status)).length;
-  document.getElementById('stats-row').innerHTML = `
+function renderDashboard(){
+  const today=new Date().toDateString();
+  const todayO=allOrders.filter(o=>new Date(o.createdAt).toDateString()===today);
+  const pending=allOrders.filter(o=>o.status==='pending').length;
+  const revenue=todayO.filter(o=>o.status==='delivered').reduce((s,o)=>s+o.total,0);
+  const active=allOrders.filter(o=>['pending','preparing','ready'].includes(o.status)).length;
+  document.getElementById('stats-row').innerHTML=`
     <div class="stat-card"><div class="stat-label">📦 طلبات اليوم</div><div class="stat-val gold">${todayO.length}</div><div class="stat-change">إجمالي الطلبات</div></div>
     <div class="stat-card"><div class="stat-label">⏳ بانتظار القبول</div><div class="stat-val" style="color:var(--orange)">${pending}</div><div class="stat-change" style="color:var(--orange)">تحتاج إجراء</div></div>
     <div class="stat-card"><div class="stat-label">🔥 طلبات نشطة</div><div class="stat-val" style="color:var(--blue)">${active}</div></div>
     <div class="stat-card"><div class="stat-label">💰 إيرادات اليوم</div><div class="stat-val gold">${revenue} ج.م</div></div>`;
-  const recent = allOrders.slice(0, 5);
-  document.getElementById('dashboard-orders').innerHTML = recent.length ?
-    recent.map(o => renderOrderCard(o)).join('') :
+  const recent=allOrders.slice(0,5);
+  document.getElementById('dashboard-orders').innerHTML=recent.length?
+    recent.map(o=>renderOrderCard(o)).join(''):
     '<div class="empty-state"><div class="empty-icon">📭</div><div>لا توجد طلبات بعد</div></div>';
 }
 
 // ── ORDER CARD ──
-function renderOrderCard(o) {
-  const typeLabel = o.type === 'delivery' ? '🛵 توصيل' : '🪑 طاولة ' + o.table;
-  const customerInfo = o.type === 'delivery' && o.customer
-    ? `<div style="font-size:.78rem;color:var(--muted);margin-top:.3rem">👤 ${o.customer.name} | 📞 ${o.customer.phone}</div>
-       <div style="font-size:.78rem;color:var(--muted)">📍 ${o.customer.address}</div>` : '';
-  const itemsStr = o.items.map(i => `${i.emoji} ${i.name} ×${i.qty}`).join('، ');
-  const notesStr = o.notes ? `<div style="font-size:.77rem;color:var(--muted);margin-top:.3rem">💬 ${o.notes}</div>` : '';
-  let actions = '';
-  if (o.status === 'pending')
-    actions = `<button class="action-btn btn-accept" onclick="updateStatus('${o.id}','preparing')">قبول</button>
-               <button class="action-btn btn-cancel" onclick="updateStatus('${o.id}','cancelled')">إلغاء</button>`;
-  else if (o.status === 'preparing')
-    actions = `<button class="action-btn btn-ready" onclick="updateStatus('${o.id}','ready')">جاهز ✓</button>`;
-  else if (o.status === 'ready')
-    actions = `<button class="action-btn btn-done" onclick="updateStatus('${o.id}','delivered')">تسليم ✓</button>`;
+function renderOrderCard(o){
+  const typeLabel=o.type==='delivery'?'🛵 توصيل':'🪑 طاولة '+o.table;
+  const cInfo=o.type==='delivery'&&o.customer?
+    `<div style="font-size:.78rem;color:var(--muted);margin-top:.3rem">👤 ${o.customer.name} | 📞 ${o.customer.phone}</div>
+     <div style="font-size:.78rem;color:var(--muted)">📍 ${o.customer.address}</div>`:'';
+  const itemsStr=o.items.map(i=>`${i.emoji} ${i.name} ×${i.qty}`).join('، ');
+  const notesStr=o.notes?`<div style="font-size:.77rem;color:var(--muted);margin-top:.3rem">💬 ${o.notes}</div>`:'';
+  let actions='';
+  if(o.status==='pending')
+    actions=`<button class="action-btn btn-accept" onclick="updateStatus('${o.id}','preparing')">قبول</button>
+             <button class="action-btn btn-cancel" onclick="updateStatus('${o.id}','cancelled')">إلغاء</button>`;
+  else if(o.status==='preparing')
+    actions=`<button class="action-btn btn-ready" onclick="updateStatus('${o.id}','ready')">جاهز ✓</button>`;
+  else if(o.status==='ready')
+    actions=`<button class="action-btn btn-done" onclick="updateStatus('${o.id}','delivered')">تسليم ✓</button>`;
   return `
-  <div class="order-card ${o.status}" id="ocard-${o.id}">
+  <div class="order-card ${o.status}">
     <div class="oc-top">
       <div><span class="oc-id">${o.id}</span><span class="oc-time" style="margin-right:.6rem">${formatTime(o.createdAt)} · ${timeAgo(o.createdAt)}</span></div>
       <span class="oc-status ${o.status}">${statusLabel(o.status)}</span>
     </div>
     <div class="oc-mid"><span class="oc-type-badge">${typeLabel}</span></div>
-    ${customerInfo}
+    ${cInfo}
     <div class="oc-items">${itemsStr}</div>
     ${notesStr}
     <div class="oc-bottom">
@@ -790,54 +764,47 @@ function renderOrderCard(o) {
 }
 
 // ── ORDERS ──
-window.filterOrders = function(f, btn) {
-  orderFilter = f;
-  document.querySelectorAll('#page-orders .ftab').forEach(b => b.classList.remove('active'));
+function filterOrders(f,btn){
+  orderFilter=f;
+  document.querySelectorAll('#page-orders .ftab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   renderOrders();
-};
-function renderOrders() {
-  let orders = orderFilter === 'all' ? allOrders : allOrders.filter(o => o.status === orderFilter);
-  document.getElementById('orders-list').innerHTML = orders.length ?
-    orders.map(o => renderOrderCard(o)).join('') :
-    '<div class="empty-state"><div class="empty-icon">📭</div><div>لا توجد طلبات في هذه الفئة</div></div>';
+}
+function renderOrders(){
+  const orders=orderFilter==='all'?allOrders:allOrders.filter(o=>o.status===orderFilter);
+  document.getElementById('orders-list').innerHTML=orders.length?
+    orders.map(o=>renderOrderCard(o)).join(''):
+    '<div class="empty-state"><div class="empty-icon">📭</div><div>لا توجد طلبات</div></div>';
 }
 
 // ── KITCHEN ──
-function renderKitchen() {
-  const active = allOrders.filter(o => ['pending','preparing','ready'].includes(o.status));
-  document.getElementById('kitchen-list').innerHTML = active.length ?
-    active.map(o => renderOrderCard(o)).join('') :
+function renderKitchen(){
+  const active=allOrders.filter(o=>['pending','preparing','ready'].includes(o.status));
+  document.getElementById('kitchen-list').innerHTML=active.length?
+    active.map(o=>renderOrderCard(o)).join(''):
     '<div class="empty-state"><div class="empty-icon">✅</div><div>لا توجد طلبات نشطة</div></div>';
 }
 
 // ── STATUS UPDATE ──
-window.updateStatus = async function(id, status) {
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') {
-    await fbUpdateOrderStatus(id, status);
-    // onValue listener will re-render automatically
-  } else {
-    // Demo mode
-    const o = allOrders.find(x => x.id === id);
-    if (o) { o.status = status; renderPage(currentPage); updateBadges(); }
-  }
-  showToast('✓ تم تحديث الطلب ' + id);
-};
+function updateStatus(id,status){
+  fbUpdateOrderStatus(id,status)
+    .then(()=>showToast('✓ تم تحديث الطلب'))
+    .catch(e=>showToast('⚠️ خطأ: '+e.message));
+}
 
 // ── MENU CAT FILTER ──
-let menuCatFilter = 'all';
-window.filterMenuCat = function(cat, btn) {
-  menuCatFilter = cat;
-  document.querySelectorAll('#menu-cat-filters .ftab').forEach(b => b.classList.remove('active'));
+function filterMenuCat(cat,btn){
+  menuCatFilter=cat;
+  document.querySelectorAll('#menu-cat-filters .ftab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   renderMenuMgmt();
-};
+}
 
 // ── MENU MGMT ──
-function renderMenuMgmt() {
-  const items = menuCatFilter === 'all' ? allMenu : allMenu.filter(i => i.cat === menuCatFilter);
-  document.getElementById('menu-mgmt-grid').innerHTML = items.length ? items.map(item => `
-    <div class="mm-card ${item.available === false ? 'unavail' : ''}">
+function renderMenuMgmt(){
+  const items=menuCatFilter==='all'?allMenu:allMenu.filter(i=>i.cat===menuCatFilter);
+  document.getElementById('menu-mgmt-grid').innerHTML=items.length?items.map(item=>`
+    <div class="mm-card ${item.available===false?'unavail':''}">
       <div class="mm-emoji">${item.emoji}</div>
       <div class="mm-info">
         <div class="mm-name">${item.name}</div>
@@ -850,274 +817,209 @@ function renderMenuMgmt() {
       </div>
       <div class="mm-actions">
         <button class="btn-edit-item" onclick="openEditModal(${item.id})">✏️ تعديل</button>
-        <button class="toggle-btn ${item.available !== false ? 'toggle-on' : 'toggle-off'}" onclick="toggleMenuItem(${item.id})">
-          ${item.available !== false ? '✓ متاح' : '✗ موقوف'}
+        <button class="toggle-btn ${item.available!==false?'toggle-on':'toggle-off'}" onclick="toggleMenuItem(${item.id})">
+          ${item.available!==false?'✓ متاح':'✗ موقوف'}
         </button>
         <button class="action-btn btn-cancel" style="font-size:.7rem;padding:.25rem .5rem" onclick="deleteMenuItem(${item.id})">🗑️ حذف</button>
       </div>
-    </div>`).join('')
-  : '<div class="empty-state"><div class="empty-icon">🍽️</div><div>لا منتجات في هذه الفئة</div></div>';
+    </div>`).join(''):
+  '<div class="empty-state"><div class="empty-icon">🍽️</div><div>لا منتجات في هذه الفئة</div></div>';
 }
 
-// ── EDIT ITEM MODAL ──
-let editingItemId = null;
-window.openEditModal = function(id) {
-  const item = allMenu.find(i => i.id === id);
-  if (!item) return;
-  editingItemId = id;
-  document.getElementById('edit-name').value  = item.name;
-  document.getElementById('edit-price').value = item.price;
-  document.getElementById('edit-emoji').value = item.emoji;
-  document.getElementById('edit-desc').value  = item.desc || '';
-  document.getElementById('edit-cat').value   = item.cat;
-  document.getElementById('edit-avail').value = String(item.available !== false);
-  document.getElementById('edit-modal').style.display = 'flex';
-};
-window.closeEditModal = function() {
-  document.getElementById('edit-modal').style.display = 'none';
-  editingItemId = null;
-};
-window.saveEditItem = async function() {
-  if (!editingItemId) return;
-  const item = allMenu.find(i => i.id === editingItemId);
-  if (!item) return;
-  const name  = document.getElementById('edit-name').value.trim();
-  const price = +document.getElementById('edit-price').value;
-  if (!name || !price) { showToast('⚠️ اسم المنتج والسعر مطلوبان'); return; }
-  item.name      = name;
-  item.price     = price;
-  item.emoji     = document.getElementById('edit-emoji').value || item.emoji;
-  item.desc      = document.getElementById('edit-desc').value.trim() || item.desc;
-  item.cat       = document.getElementById('edit-cat').value;
-  item.available = document.getElementById('edit-avail').value === 'true';
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') await fbSaveMenuItem(item);
-  closeEditModal();
-  renderMenuMgmt();
-  showToast('✓ تم حفظ تعديلات ' + item.name);
-};
-// Close modal on backdrop click
-document.getElementById('edit-modal').addEventListener('click', function(e) {
-  if (e.target === this) window.closeEditModal();
-});
-
-
-window.toggleMenuItem = async function(id) {
-  const item = allMenu.find(i => i.id === id);
-  if (!item) return;
-  item.available = item.available === false ? true : false;
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') await fbSaveMenuItem(item);
-  else renderMenuMgmt();
-  showToast(item.available ? '✓ تم تفعيل المنتج' : '⛔ تم إيقاف المنتج مؤقتاً');
-};
-window.updatePrice = async function(id) {
-  const item = allMenu.find(i => i.id === id);
-  if (!item) return;
-  const newPrice = +document.getElementById('price-' + id).value;
-  if (!newPrice || newPrice < 1) return;
-  item.price = newPrice;
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') await fbSaveMenuItem(item);
-  else renderMenuMgmt();
-  showToast('✓ تم تحديث سعر ' + item.name);
-};
-window.deleteMenuItem = async function(id) {
-  if (!confirm('هل أنت متأكد من حذف هذا المنتج؟')) return;
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') await fbDeleteMenuItem(id);
-  else { const idx = allMenu.findIndex(i => i.id === id); if (idx !== -1) allMenu.splice(idx, 1); renderMenuMgmt(); }
-  showToast('🗑️ تم حذف المنتج');
-};
-window.addNewItem = async function() {
-  const name  = document.getElementById('new-name').value.trim();
-  const price = +document.getElementById('new-price').value;
-  const cat   = document.getElementById('new-cat').value;
-  const emoji = document.getElementById('new-emoji').value || '☕';
-  const desc  = document.getElementById('new-desc').value.trim();
-  if (!name || !price) { showToast('⚠️ أدخل اسم المنتج والسعر'); return; }
-  const newId = Math.max(...allMenu.map(i => i.id), 0) + 1;
-  const item  = { id:newId, cat, name, desc:desc||name, price, emoji, available:true };
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') await fbSaveMenuItem(item);
-  else { allMenu.push(item); renderMenuMgmt(); }
-  ['new-name','new-price','new-emoji','new-desc'].forEach(id => document.getElementById(id).value = '');
-  showToast('✓ تمت إضافة ' + name);
-};
-
-// ── USERS MANAGEMENT ──
-let allUsers = [];
-
-function startUsersListener() {
-  if (FIREBASE_CONFIG.apiKey === 'REPLACE_API_KEY') return;
-  onValue(ref(db, 'users'), snap => {
-    const val = snap.val();
-    allUsers = val ? Object.values(val) : [];
-    if (currentPage === 'users') renderUsers();
+function toggleMenuItem(id){
+  const item=allMenu.find(i=>i.id===id); if(!item)return;
+  item.available=item.available===false?true:false;
+  fbSaveMenuItem(item).then(()=>showToast(item.available?'✓ تم تفعيل المنتج':'⛔ تم إيقاف المنتج مؤقتاً'));
+}
+function updatePrice(id){
+  const item=allMenu.find(i=>i.id===id); if(!item)return;
+  const np=+document.getElementById('price-'+id).value;
+  if(!np||np<1)return;
+  item.price=np;
+  fbSaveMenuItem(item).then(()=>showToast('✓ تم تحديث السعر'));
+}
+function deleteMenuItem(id){
+  if(!confirm('هل أنت متأكد من حذف هذا المنتج؟'))return;
+  fbDeleteMenuItem(id).then(()=>showToast('🗑️ تم حذف المنتج'));
+}
+function addNewItem(){
+  const name=document.getElementById('new-name').value.trim();
+  const price=+document.getElementById('new-price').value;
+  const cat=document.getElementById('new-cat').value;
+  const emoji=document.getElementById('new-emoji').value||'☕';
+  const desc=document.getElementById('new-desc').value.trim();
+  if(!name||!price){showToast('⚠️ أدخل اسم المنتج والسعر');return;}
+  const newId=Math.max(...allMenu.map(i=>i.id),0)+1;
+  const item={id:newId,cat,name,desc:desc||name,price,emoji,available:true};
+  fbSaveMenuItem(item).then(()=>{
+    ['new-name','new-price','new-emoji','new-desc'].forEach(id=>document.getElementById(id).value='');
+    showToast('✓ تمت إضافة '+name);
   });
 }
 
-function renderUsers() {
-  const el = document.getElementById('users-list');
-  if (!el) return;
-  const roleLabel = { admin:'أدمن', cashier:'كاشير', kitchen:'مطبخ' };
-  const roleClass = { admin:'role-admin', cashier:'role-cashier', kitchen:'role-kitchen' };
-  el.innerHTML = allUsers.length ? allUsers.map(u => `
+// ── EDIT MODAL ──
+function openEditModal(id){
+  const item=allMenu.find(i=>i.id===id); if(!item)return;
+  editingItemId=id;
+  document.getElementById('edit-name').value  =item.name;
+  document.getElementById('edit-price').value =item.price;
+  document.getElementById('edit-emoji').value =item.emoji;
+  document.getElementById('edit-desc').value  =item.desc||'';
+  document.getElementById('edit-cat').value   =item.cat;
+  document.getElementById('edit-avail').value =String(item.available!==false);
+  document.getElementById('edit-modal').style.display='flex';
+}
+function closeEditModal(){
+  document.getElementById('edit-modal').style.display='none';
+  editingItemId=null;
+}
+function saveEditItem(){
+  if(!editingItemId)return;
+  const item=allMenu.find(i=>i.id===editingItemId); if(!item)return;
+  const name=document.getElementById('edit-name').value.trim();
+  const price=+document.getElementById('edit-price').value;
+  if(!name||!price){showToast('⚠️ اسم المنتج والسعر مطلوبان');return;}
+  item.name     =name;
+  item.price    =price;
+  item.emoji    =document.getElementById('edit-emoji').value||item.emoji;
+  item.desc     =document.getElementById('edit-desc').value.trim()||item.desc;
+  item.cat      =document.getElementById('edit-cat').value;
+  item.available=document.getElementById('edit-avail').value==='true';
+  fbSaveMenuItem(item).then(()=>{closeEditModal();showToast('✓ تم حفظ التعديلات');});
+}
+document.getElementById('edit-modal').addEventListener('click',function(e){if(e.target===this)closeEditModal();});
+
+// ── USERS ──
+function renderUsers(){
+  const el=document.getElementById('users-list'); if(!el)return;
+  const rLabel={admin:'أدمن',cashier:'كاشير',kitchen:'مطبخ'};
+  const rClass={admin:'role-admin',cashier:'role-cashier',kitchen:'role-kitchen'};
+  el.innerHTML=allUsers.length?allUsers.map(u=>`
     <div class="user-card">
       <div class="user-avatar-lg">${(u.name||u.email||'?')[0].toUpperCase()}</div>
       <div class="user-info">
-        <div class="user-name">${u.name || '—'}</div>
+        <div class="user-name">${u.name||'—'}</div>
         <div class="user-email">${u.email}</div>
-        <span class="user-role-badge ${roleClass[u.role]||'role-cashier'}">${roleLabel[u.role]||u.role}</span>
+        <span class="user-role-badge ${rClass[u.role]||'role-cashier'}">${rLabel[u.role]||u.role}</span>
       </div>
-      <div style="display:flex;flex-direction:column;gap:.4rem;flex-shrink:0">
+      <div style="flex-shrink:0">
         <button class="action-btn btn-cancel" style="font-size:.73rem;padding:.3rem .65rem" onclick="deleteUser('${u.uid}','${u.email}')">🗑️ حذف</button>
       </div>
-    </div>`).join('')
-  : '<div class="empty-state"><div class="empty-icon">👥</div><div>لا مستخدمين مسجّلين بعد</div></div>';
+    </div>`).join(''):
+  '<div class="empty-state"><div class="empty-icon">👥</div><div>لا مستخدمين مسجّلين بعد</div></div>';
+}
+function addNewUser(){
+  const name =document.getElementById('new-user-name').value.trim();
+  const email=document.getElementById('new-user-email').value.trim();
+  const pass =document.getElementById('new-user-pass').value;
+  const role =document.getElementById('new-user-role').value;
+  const note =document.getElementById('user-add-note');
+  if(!email||!pass){showToast('⚠️ البريد وكلمة المرور مطلوبان');return;}
+  if(pass.length<6){showToast('⚠️ كلمة المرور 6 أحرف على الأقل');return;}
+  const uid='user-'+Date.now();
+  db.ref('users/'+uid).set({uid,name,email,role,createdAt:new Date().toISOString()})
+    .then(()=>{
+      note.style.display='block';
+      note.textContent=`✅ تم حفظ بيانات "${name||email}" — لإتمام الحساب: Firebase Console → Authentication → Add User → أضف "${email}"`;
+      ['new-user-name','new-user-email','new-user-pass'].forEach(id=>document.getElementById(id).value='');
+      showToast('✓ تم حفظ بيانات المستخدم');
+      setTimeout(()=>note.style.display='none',12000);
+    }).catch(e=>showToast('⚠️ خطأ: '+e.message));
+}
+function deleteUser(uid,email){
+  if(!confirm(`حذف المستخدم "${email}"؟`))return;
+  db.ref('users/'+uid).remove().then(()=>showToast('🗑️ تم حذف المستخدم'));
 }
 
-window.addNewUser = async function() {
-  const name  = document.getElementById('new-user-name').value.trim();
-  const email = document.getElementById('new-user-email').value.trim();
-  const pass  = document.getElementById('new-user-pass').value;
-  const role  = document.getElementById('new-user-role').value;
-  const note  = document.getElementById('user-add-note');
-
-  if (!email || !pass) { showToast('⚠️ البريد وكلمة المرور مطلوبان'); return; }
-  if (pass.length < 6) { showToast('⚠️ كلمة المرور 6 أحرف على الأقل'); return; }
-
-  if (FIREBASE_CONFIG.apiKey === 'REPLACE_API_KEY') {
-    // Demo mode — just save to local list
-    const fakeUid = 'demo-' + Date.now();
-    allUsers.push({ uid: fakeUid, name, email, role });
-    renderUsers();
-    ['new-user-name','new-user-email','new-user-pass'].forEach(id => document.getElementById(id).value = '');
-    showToast('✓ تمت الإضافة (وضع تجريبي)');
-    return;
-  }
-
-  // Real Firebase: use Admin SDK via Cloud Function or Firebase REST API
-  // Since we're a client-side app, we store user info in /users node
-  // The actual Firebase Auth account should be created via Firebase Console or Admin SDK
-  // Here we save metadata and guide the admin:
-  const uid = 'user-' + Date.now();
-  const userData = { uid, name, email, role, createdAt: new Date().toISOString() };
-  try {
-    await set(ref(db, 'users/' + uid), userData);
-    note.style.display = 'block';
-    note.textContent = `✅ تم حفظ بيانات "${name}" — لإتمام إنشاء الحساب: اذهب إلى Firebase Console → Authentication → Add User وأضف البريد "${email}" بنفس كلمة المرور.`;
-    ['new-user-name','new-user-email','new-user-pass'].forEach(id => document.getElementById(id).value = '');
-    showToast('✓ تم حفظ بيانات المستخدم');
-    setTimeout(() => note.style.display = 'none', 12000);
-  } catch(e) {
-    showToast('⚠️ خطأ: ' + e.message);
-  }
-};
-
-window.deleteUser = async function(uid, email) {
-  if (!confirm(`حذف المستخدم "${email}"؟`)) return;
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') {
-    try { await remove(ref(db, 'users/' + uid)); } catch(e) { showToast('⚠️ ' + e.message); return; }
-  } else {
-    allUsers = allUsers.filter(u => u.uid !== uid);
-    renderUsers();
-  }
-  showToast('🗑️ تم حذف المستخدم');
-};
-
 // ── REPORTS ──
-function renderReports() {
-  const delivered = allOrders.filter(o => o.status === 'delivered');
-  const revenue   = delivered.reduce((s,o) => s+o.total, 0);
-  const today     = new Date().toDateString();
-  const todayRev  = delivered.filter(o => new Date(o.createdAt).toDateString() === today).reduce((s,o) => s+o.total, 0);
-  document.getElementById('report-stats').innerHTML = `
+function renderReports(){
+  const delivered=allOrders.filter(o=>o.status==='delivered');
+  const revenue=delivered.reduce((s,o)=>s+o.total,0);
+  const today=new Date().toDateString();
+  const todayRev=delivered.filter(o=>new Date(o.createdAt).toDateString()===today).reduce((s,o)=>s+o.total,0);
+  document.getElementById('report-stats').innerHTML=`
     <div class="stat-card"><div class="stat-label">💰 إجمالي الإيرادات</div><div class="stat-val gold">${revenue} ج.م</div></div>
     <div class="stat-card"><div class="stat-label">📦 إجمالي الطلبات</div><div class="stat-val">${allOrders.length}</div></div>
     <div class="stat-card"><div class="stat-label">✅ مكتملة</div><div class="stat-val" style="color:var(--green)">${delivered.length}</div></div>
     <div class="stat-card"><div class="stat-label">💵 إيرادات اليوم</div><div class="stat-val gold">${todayRev} ج.م</div></div>`;
-  const ic = {};
-  allOrders.forEach(o => o.items.forEach(i => {
-    if (!ic[i.name]) ic[i.name] = {count:0,emoji:i.emoji};
-    ic[i.name].count += i.qty;
+  const ic={};
+  allOrders.forEach(o=>o.items.forEach(i=>{
+    if(!ic[i.name])ic[i.name]={count:0,emoji:i.emoji};
+    ic[i.name].count+=i.qty;
   }));
-  const sorted = Object.entries(ic).sort((a,b) => b[1].count - a[1].count).slice(0,6);
-  const max = sorted[0]?.[1]?.count || 1;
-  document.getElementById('top-items').innerHTML = sorted.length ? sorted.map(([name,d]) =>
+  const sorted=Object.entries(ic).sort((a,b)=>b[1].count-a[1].count).slice(0,6);
+  const max=sorted[0]?.[1]?.count||1;
+  document.getElementById('top-items').innerHTML=sorted.length?sorted.map(([name,d])=>
     `<div class="report-item"><span class="report-item-name">${d.emoji} ${name}</span>
      <div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(d.count/max*100)}%"></div></div>
-     <span class="report-item-val">${d.count}×</span></div>`).join('')
-    : '<div style="color:var(--muted);font-size:.85rem;padding:.5rem 0">لا بيانات بعد</div>';
-  const tC = allOrders.filter(o => o.type==='table').length;
-  const dC = allOrders.filter(o => o.type==='delivery').length;
-  const total = allOrders.length || 1;
-  document.getElementById('order-types-report').innerHTML = `
-    <div class="report-item"><span class="report-item-name">🪑 طاولة</span><div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(tC/total*100)}%"></div></div><span class="report-item-val">${tC}</span></div>
-    <div class="report-item"><span class="report-item-name">🛵 توصيل</span><div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(dC/total*100)}%"></div></div><span class="report-item-val">${dC}</span></div>`;
-  document.getElementById('completed-orders').innerHTML = delivered.slice(0,8).map(o =>
+     <span class="report-item-val">${d.count}×</span></div>`).join(''):
+    '<div style="color:var(--muted);font-size:.85rem;padding:.5rem 0">لا بيانات بعد</div>';
+  const tC=allOrders.filter(o=>o.type==='table').length;
+  const dC=allOrders.filter(o=>o.type==='delivery').length;
+  const tot=allOrders.length||1;
+  document.getElementById('order-types-report').innerHTML=`
+    <div class="report-item"><span class="report-item-name">🪑 طاولة</span><div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(tC/tot*100)}%"></div></div><span class="report-item-val">${tC}</span></div>
+    <div class="report-item"><span class="report-item-name">🛵 توصيل</span><div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(dC/tot*100)}%"></div></div><span class="report-item-val">${dC}</span></div>`;
+  document.getElementById('completed-orders').innerHTML=delivered.slice(0,8).map(o=>
     `<div class="report-item"><span class="report-item-name">${o.id} · ${o.type==='table'?'🪑 '+o.table:'🛵'}</span>
      <span style="font-size:.75rem;color:var(--muted)">${formatTime(o.createdAt)}</span>
-     <span class="report-item-val">${o.total} ج.م</span></div>`).join('')
-    || '<div style="color:var(--muted);font-size:.85rem;padding:.5rem 0">لا طلبات مكتملة بعد</div>';
+     <span class="report-item-val">${o.total} ج.م</span></div>`).join('')||
+    '<div style="color:var(--muted);font-size:.85rem;padding:.5rem 0">لا طلبات مكتملة بعد</div>';
 }
 
 // ── SETTINGS ──
-window.saveSettings = async function() {
-  settings = {
-    cafeName: document.getElementById('cafe-name-input').value,
-    tables:   +document.getElementById('tables-count').value,
-    deliveryFee: +document.getElementById('delivery-fee').value,
-    sound: document.getElementById('sound-toggle').checked
+function saveSettings(){
+  settings={
+    cafeName:document.getElementById('cafe-name-input').value,
+    tables:+document.getElementById('tables-count').value,
+    deliveryFee:+document.getElementById('delivery-fee').value,
+    sound:document.getElementById('sound-toggle').checked
   };
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') await fbSaveSettings(settings);
-  showToast('✓ تم حفظ الإعدادات');
-};
-window.clearCompleted = async function() {
-  if (!confirm('حذف كل الطلبات المكتملة والملغاة؟')) return;
-  const toDelete = allOrders.filter(o => ['delivered','cancelled'].includes(o.status));
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') {
-    for (const o of toDelete) await remove(ref(db, 'orders/' + o.id));
-  } else {
-    allOrders = allOrders.filter(o => !['delivered','cancelled'].includes(o.status));
-    renderPage(currentPage); updateBadges();
-  }
-  showToast('✓ تم مسح ' + toDelete.length + ' طلب');
-};
-window.resetMenu = async function() {
-  if (!confirm('إعادة تعيين القائمة للافتراضية؟')) return;
-  if (FIREBASE_CONFIG.apiKey !== 'REPLACE_API_KEY') {
-    for (const item of DEFAULT_MENU) await fbSaveMenuItem(item);
-  } else { allMenu = [...DEFAULT_MENU]; renderMenuMgmt(); }
-  showToast('✓ تم إعادة تعيين القائمة');
-};
-
-// ── BADGES & NOTIFICATIONS ──
-function updateBadges() {
-  const pending = allOrders.filter(o => o.status === 'pending').length;
-  const active  = allOrders.filter(o => ['pending','preparing','ready'].includes(o.status)).length;
-  const pb = document.getElementById('pending-badge');
-  const kb = document.getElementById('kitchen-badge');
-  if (pending > 0) { pb.style.display='inline-block'; pb.textContent=pending; } else pb.style.display='none';
-  if (active  > 0) { kb.style.display='inline-block'; kb.textContent=active;  } else kb.style.display='none';
+  fbSaveSettings(settings).then(()=>showToast('✓ تم حفظ الإعدادات'));
 }
-function notifyNewOrder(count) {
-  showToast('🔔 ' + count + ' طلب جديد وصل!');
-  if (settings.sound) {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator(); const g = ctx.createGain();
-      osc.connect(g); g.connect(ctx.destination);
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
-      g.gain.setValueAtTime(0.3, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.5);
-    } catch {}
+function clearCompleted(){
+  if(!confirm('حذف كل الطلبات المكتملة والملغاة؟'))return;
+  const toDelete=allOrders.filter(o=>['delivered','cancelled'].includes(o.status));
+  Promise.all(toDelete.map(o=>db.ref('orders/'+o.id).remove()))
+    .then(()=>showToast('✓ تم مسح '+toDelete.length+' طلب'));
+}
+function resetMenu(){
+  if(!confirm('إعادة تعيين القائمة للافتراضية؟'))return;
+  Promise.all(DEFAULT_MENU.map(item=>fbSaveMenuItem(item)))
+    .then(()=>showToast('✓ تم إعادة تعيين القائمة'));
+}
+
+// ── BADGES ──
+function updateBadges(){
+  const pending=allOrders.filter(o=>o.status==='pending').length;
+  const active=allOrders.filter(o=>['pending','preparing','ready'].includes(o.status)).length;
+  const pb=document.getElementById('pending-badge');
+  const kb=document.getElementById('kitchen-badge');
+  if(pending>0){pb.style.display='inline-block';pb.textContent=pending;}else pb.style.display='none';
+  if(active>0){kb.style.display='inline-block';kb.textContent=active;}else kb.style.display='none';
+}
+function notifyNewOrder(count){
+  showToast('🔔 '+count+' طلب جديد وصل!');
+  if(settings.sound){
+    try{
+      const ctx=new(window.AudioContext||window.webkitAudioContext)();
+      const osc=ctx.createOscillator();const g=ctx.createGain();
+      osc.connect(g);g.connect(ctx.destination);
+      osc.frequency.setValueAtTime(880,ctx.currentTime);
+      osc.frequency.setValueAtTime(660,ctx.currentTime+0.15);
+      g.gain.setValueAtTime(0.3,ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.5);
+      osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.5);
+    }catch{}
   }
 }
 
 // ── PRINT ──
-window.printReceipt = function(id) {
-  const o = allOrders.find(x => x.id === id); if (!o) return;
-  const pa = document.getElementById('print-area');
-  pa.style.display = 'block';
-  pa.innerHTML = `
+function printReceipt(id){
+  const o=allOrders.find(x=>x.id===id);if(!o)return;
+  const pa=document.getElementById('print-area');
+  pa.style.display='block';
+  pa.innerHTML=`
     <div style="text-align:center;margin-bottom:16px">
       <div style="font-size:22px;font-weight:900">☕ مراد كافيه</div>
       <div style="font-size:13px;color:#666;margin-top:4px">${formatTime(o.createdAt)}</div>
@@ -1137,20 +1039,19 @@ window.printReceipt = function(id) {
     ${o.notes?`<div style="font-size:12px;color:#666;margin-top:8px">ملاحظة: ${o.notes}</div>`:''}
     <div style="text-align:center;margin-top:16px;font-size:12px;color:#999">شكراً لزيارتكم ❤️</div>`;
   window.print();
-  setTimeout(() => { pa.style.display='none'; }, 1000);
-};
-
-// ── TOAST ──
-function showToast(msg) {
-  const t = document.getElementById('admin-toast'); t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+  setTimeout(()=>{pa.style.display='none';},1000);
 }
 
-// ── ENTER KEY on login ──
-document.getElementById('login-pass').addEventListener('keydown', e => {
-  if (e.key === 'Enter') window.doLogin();
-});
+// ── TOAST ──
+function showToast(msg){
+  const t=document.getElementById('admin-toast');t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
 
+// Enter key on login
+document.getElementById('login-pass').addEventListener('keydown',e=>{
+  if(e.key==='Enter') doLogin();
+});
 </script>
 </body>
 </html>
