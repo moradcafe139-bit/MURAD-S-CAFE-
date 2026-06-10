@@ -492,14 +492,28 @@ import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
 // ══════════════════════════════════════════════════════
 //  🔥 FIREBASE CONFIG — paste your own values here
 // ══════════════════════════════════════════════════════
-const FIREBASE_CONFIG = {
-  apiKey:            "REPLACE_API_KEY",
-  authDomain:        "REPLACE_PROJECT_ID.firebaseapp.com",
-  databaseURL:       "https://REPLACE_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId:         "REPLACE_PROJECT_ID",
-  storageBucket:     "REPLACE_PROJECT_ID.appspot.com",
-  messagingSenderId: "REPLACE_SENDER_ID",
-  appId:             "REPLACE_APP_ID"
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyB56OuMztZjQ8Ev6qsm6iB7CJswn_N7fVM",
+  authDomain: "murad-s-cafe.firebaseapp.com",
+  databaseURL: "https://murad-s-cafe-default-rtdb.firebaseio.com",
+  projectId: "murad-s-cafe",
+  storageBucket: "murad-s-cafe.firebasestorage.app",
+  messagingSenderId: "438256817002",
+  appId: "1:438256817002:web:1aa2217fcf92bc48fa4b13",
+  measurementId: "G-087HT74WHP"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 };
 // ══════════════════════════════════════════════════════
 
