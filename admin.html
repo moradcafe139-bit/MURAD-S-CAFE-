@@ -220,7 +220,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);displ
     </div>
     <button class="login-btn" onclick="doLogin()">دخول →</button>
     <div class="login-error" id="login-err">❌ بيانات الدخول غير صحيحة</div>
-    <p style="font-size:.72rem;color:var(--muted2);margin-top:1rem">تجربة: admin / murad2025</p>
+    <p style="font-size:.72rem;color:var(--muted2);margin-top:1rem">ادخل بريدك الإلكتروني المسجّل في Firebase</p>
   </div>
 </div>
 
@@ -490,30 +490,16 @@ import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ══════════════════════════════════════════════════════
-//  🔥 FIREBASE CONFIG — paste your own values here
+//  🔥 FIREBASE CONFIG
 // ══════════════════════════════════════════════════════
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyB56OuMztZjQ8Ev6qsm6iB7CJswn_N7fVM",
   authDomain: "murad-s-cafe.firebaseapp.com",
   databaseURL: "https://murad-s-cafe-default-rtdb.firebaseio.com",
   projectId: "murad-s-cafe",
   storageBucket: "murad-s-cafe.firebasestorage.app",
   messagingSenderId: "438256817002",
-  appId: "1:438256817002:web:1aa2217fcf92bc48fa4b13",
-  measurementId: "G-087HT74WHP"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+  appId: "1:438256817002:web:1aa2217fcf92bc48fa4b13"
 };
 // ══════════════════════════════════════════════════════
 
@@ -548,6 +534,8 @@ let unsubMenu   = null;
 
 // ── AUTH STATE ──
 onAuthStateChanged(auth, user => {
+  const btn = document.querySelector('.login-btn');
+  if (btn) { btn.textContent = 'دخول →'; btn.disabled = false; }
   if (user) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('sidebar').style.display = 'flex';
@@ -569,26 +557,41 @@ window.doLogin = async function() {
   const email = document.getElementById('login-user').value.trim();
   const pass  = document.getElementById('login-pass').value.trim();
   const err   = document.getElementById('login-err');
-  // Support shorthand "admin" → use stored email from settings or default
+  const btn   = document.querySelector('.login-btn');
+
+  if (!email || !pass) {
+    err.style.display = 'block';
+    err.textContent = '⚠️ أدخل البريد الإلكتروني وكلمة المرور';
+    setTimeout(() => err.style.display = 'none', 3000);
+    return;
+  }
+
+  // Convert shorthand (e.g. "admin") to full email
   const fullEmail = email.includes('@') ? email : email + '@muradcafe.com';
+
+  btn.textContent = 'جارٍ التحقق...';
+  btn.disabled = true;
+
   try {
     await signInWithEmailAndPassword(auth, fullEmail, pass);
+    // onAuthStateChanged will handle showing the dashboard
   } catch(e) {
-    // Fallback: demo mode (no real Firebase auth configured yet)
-    if (FIREBASE_CONFIG.apiKey === 'REPLACE_API_KEY') {
-      // Firebase not configured yet — allow demo login
-      if ((email === 'admin' || email === 'admin@muradcafe.com') && pass === 'murad2025') {
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('sidebar').style.display = 'flex';
-        document.getElementById('main').style.display = 'flex';
-        document.getElementById('sb-username').textContent = 'أدمن (تجريبي)';
-        initDemoMode();
-        return;
-      }
-    }
+    btn.textContent = 'دخول →';
+    btn.disabled = false;
     err.style.display = 'block';
-    err.textContent = '❌ ' + (e.code === 'auth/invalid-credential' ? 'بيانات الدخول غير صحيحة' : e.message);
-    setTimeout(() => err.style.display = 'none', 3000);
+    const msgs = {
+      'auth/invalid-credential':    '❌ البريد الإلكتروني أو كلمة المرور غلط',
+      'auth/user-not-found':        '❌ هذا الحساب غير موجود',
+      'auth/wrong-password':        '❌ كلمة المرور غلط',
+      'auth/invalid-email':         '❌ صيغة البريد الإلكتروني غير صحيحة',
+      'auth/user-disabled':         '❌ هذا الحساب موقوف',
+      'auth/too-many-requests':     '⚠️ محاولات كثيرة — انتظر قليلاً ثم حاول مجدداً',
+      'auth/network-request-failed':'⚠️ تحقق من الاتصال بالإنترنت',
+      'auth/configuration-not-found':'⚠️ Firebase Auth غير مفعّل — فعّله من Console',
+    };
+    err.textContent = msgs[e.code] || ('❌ خطأ: ' + e.message);
+    console.error('Login error:', e.code, e.message);
+    setTimeout(() => err.style.display = 'none', 5000);
   }
 };
 
