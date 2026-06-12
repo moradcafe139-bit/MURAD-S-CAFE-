@@ -196,6 +196,16 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);displ
 #admin-toast{position:fixed;bottom:1.5rem;left:1.5rem;background:#111;color:#39D043;padding:.7rem 1.3rem;border-radius:10px;font-size:.85rem;font-weight:700;transform:translateY(60px);opacity:0;transition:.3s;z-index:999;max-width:300px;border:1px solid #39D043}
 #admin-toast.show{transform:translateY(0);opacity:1}
 @media print{body *{visibility:hidden}#print-area,#print-area *{visibility:visible}#print-area{position:fixed;left:0;top:0;width:100%;direction:rtl;font-family:'Cairo',sans-serif}}
+
+.report-toolbar{display:flex;gap:.7rem;align-items:end;flex-wrap:wrap;margin-bottom:1.2rem;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1rem 1.2rem;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.report-toolbar .aif-field{min-width:140px}
+.report-toolbar .aif-input{padding:.5rem .75rem;font-size:.85rem}
+.btn-export{background:#1a6e1e;color:#fff;border:none;border-radius:9px;padding:.55rem 1.2rem;font-family:'Cairo',sans-serif;font-size:.85rem;font-weight:700;cursor:pointer;transition:.2s;white-space:nowrap;display:flex;align-items:center;gap:.4rem}
+.btn-export:hover{background:#155718}
+.btn-reset-today{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:9px;padding:.55rem 1.2rem;font-family:'Cairo',sans-serif;font-size:.85rem;font-weight:700;cursor:pointer;transition:.2s;white-space:nowrap}
+.btn-reset-today:hover{background:var(--red);color:#fff}
+.btn-clear-filter{background:#F7F8FA;border:1.5px solid var(--border2);color:var(--muted);border-radius:9px;padding:.5rem .9rem;font-family:'Cairo',sans-serif;font-size:.83rem;cursor:pointer;transition:.2s}
+.btn-clear-filter:hover{background:#eee;color:var(--text)}
 </style>
 </head>
 <body>
@@ -445,6 +455,21 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);displ
 
   <!-- REPORTS -->
   <div class="page" id="page-reports">
+    <div class="report-toolbar">
+      <div class="aif-field">
+        <label class="aif-label">من تاريخ</label>
+        <input class="aif-input" type="date" id="report-from">
+      </div>
+      <div class="aif-field">
+        <label class="aif-label">إلى تاريخ</label>
+        <input class="aif-input" type="date" id="report-to">
+      </div>
+      <button class="aif-add-btn" onclick="applyReportFilter()">🔍 تصفية</button>
+      <button class="btn-clear-filter" onclick="clearReportFilter()">إلغاء التصفية</button>
+      <div style="flex:1"></div>
+      <button class="btn-export" onclick="exportRevenueExcel()">📊 تصدير Excel</button>
+      <button class="btn-reset-today" onclick="resetTodayTransactions()">🗑️ تصفير معاملات اليوم</button>
+    </div>
     <div class="stats-row" id="report-stats"></div>
     <div class="reports-grid">
       <div class="report-card">
@@ -567,6 +592,8 @@ var users    = [];
 var page     = 'dashboard';
 var oFilter  = 'all';
 var mFilter  = 'all';
+var reportFrom = null;
+var reportTo   = null;
 var editId   = null;
 var snd      = true;
 
@@ -974,18 +1001,50 @@ function delUser(uid) {
 }
 
 /* ===== REPORTS ===== */
+function getFilteredOrders() {
+  if (!reportFrom && !reportTo) return orders;
+  return orders.filter(function(o) {
+    var d = new Date(o.createdAt);
+    var dStr = d.toISOString().slice(0,10);
+    if (reportFrom && dStr < reportFrom) return false;
+    if (reportTo   && dStr > reportTo)   return false;
+    return true;
+  });
+}
+
+function applyReportFilter() {
+  reportFrom = V('report-from') || null;
+  reportTo   = V('report-to') || null;
+  if (reportFrom && reportTo && reportFrom > reportTo) {
+    toast('⚠️ تاريخ البداية بعد تاريخ النهاية');
+    return;
+  }
+  drawReports();
+  toast('✓ تم تطبيق التصفية');
+}
+
+function clearReportFilter() {
+  reportFrom = null;
+  reportTo = null;
+  I('report-from').value = '';
+  I('report-to').value = '';
+  drawReports();
+  toast('↻ تم إلغاء التصفية');
+}
+
 function drawReports() {
-  var done = orders.filter(function(o){return o.status==='delivered';});
+  var filtered = getFilteredOrders();
+  var done = filtered.filter(function(o){return o.status==='delivered';});
   var rev  = done.reduce(function(s,o){return s+o.total;},0);
   var tod  = new Date().toDateString();
   var trev = done.filter(function(o){return new Date(o.createdAt).toDateString()===tod;}).reduce(function(s,o){return s+o.total;},0);
   I('report-stats').innerHTML =
     stat('💰 إجمالي الإيرادات',rev+' ج.م','gold')+
-    stat('📦 إجمالي الطلبات',orders.length,'')+
+    stat('📦 إجمالي الطلبات',filtered.length,'')+
     stat('✅ مكتملة',done.length,'style="color:var(--green)"')+
     stat('💵 إيرادات اليوم',trev+' ج.م','gold');
   var ic={};
-  orders.forEach(function(o){o.items.forEach(function(i){
+  filtered.forEach(function(o){o.items.forEach(function(i){
     if(!ic[i.name])ic[i.name]={n:0,e:i.emoji};
     ic[i.name].n+=i.qty;
   });});
@@ -996,10 +1055,10 @@ function drawReports() {
       '<div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(e[1].n/mx*100)+'%"></div></div>'+
       '<span class="report-item-val">'+e[1].n+'×</span></div>';
   }).join('')||'<p style="color:var(--muted);font-size:.85rem">لا بيانات بعد</p>';
-  var tC=orders.filter(function(o){return o.type==='table';}).length;
-  var dC=orders.filter(function(o){return o.type==='delivery';}).length;
-  var kC=orders.filter(function(o){return o.type==='takeaway';}).length;
-  var tot=orders.length||1;
+  var tC=filtered.filter(function(o){return o.type==='table';}).length;
+  var dC=filtered.filter(function(o){return o.type==='delivery';}).length;
+  var kC=filtered.filter(function(o){return o.type==='takeaway';}).length;
+  var tot=filtered.length||1;
   I('order-types-report').innerHTML=
     '<div class="report-item"><span class="report-item-name">🪑 طاولة</span><div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(tC/tot*100)+'%"></div></div><span class="report-item-val">'+tC+'</span></div>'+
     '<div class="report-item"><span class="report-item-name">🥡 تيك أواي</span><div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(kC/tot*100)+'%"></div></div><span class="report-item-val">'+kC+'</span></div>'+
@@ -1010,6 +1069,76 @@ function drawReports() {
       '<span style="font-size:.75rem;color:var(--muted)">'+fmtTime(o.createdAt)+'</span>'+
       '<span class="report-item-val">'+o.total+' ج.م</span></div>';
   }).join('')||'<p style="color:var(--muted);font-size:.85rem">لا طلبات مكتملة بعد</p>';
+}
+
+/* ===== EXPORT TO EXCEL (CSV) ===== */
+function exportRevenueExcel() {
+  var filtered = getFilteredOrders();
+  if (!filtered.length) { toast('⚠️ لا توجد بيانات للتصدير'); return; }
+
+  var rows = [];
+  rows.push(['رقم الطلب','التاريخ','الوقت','النوع','الطاولة','الحالة','المنتجات','الملاحظات','الإجمالي (ج.م)']);
+
+  filtered.sort(function(a,b){ return new Date(a.createdAt) - new Date(b.createdAt); });
+
+  filtered.forEach(function(o){
+    var typeLabel = o.type==='table' ? 'طاولة' : o.type==='takeaway' ? 'تيك أواي' : 'توصيل';
+    var itemsStr = o.items.map(function(i){ return i.name+' ×'+i.qty; }).join(' | ');
+    var statusLabel2 = {pending:'جديد',preparing:'يُحضَّر',ready:'جاهز',delivered:'تم التسليم',cancelled:'ملغي'}[o.status]||o.status;
+    var d = new Date(o.createdAt);
+    rows.push([
+      o.id,
+      d.toLocaleDateString('ar-EG'),
+      fmtTime(o.createdAt),
+      typeLabel,
+      o.table||'-',
+      statusLabel2,
+      itemsStr,
+      o.notes||'-',
+      o.total
+    ]);
+  });
+
+  var totalRevenue = filtered.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0);
+  rows.push([]);
+  rows.push(['','','','','','','','إجمالي الإيرادات (طلبات مكتملة)', totalRevenue]);
+
+  var csv = '\uFEFF' + rows.map(function(r){
+    return r.map(function(cell){
+      var s = String(cell==null?'':cell);
+      if (s.indexOf(',')>-1 || s.indexOf('"')>-1 || s.indexOf('\n')>-1) {
+        s = '"'+s.replace(/"/g,'""')+'"';
+      }
+      return s;
+    }).join(',');
+  }).join('\r\n');
+
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var fname = 'murads-revenue';
+  if (reportFrom || reportTo) fname += '_'+(reportFrom||'..')+'_to_'+(reportTo||'..');
+  else fname += '_'+new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = fname+'.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('✓ تم تصدير '+filtered.length+' طلب');
+}
+
+/* ===== RESET TODAY'S TRANSACTIONS ===== */
+function resetTodayTransactions() {
+  var today = new Date().toDateString();
+  var todayOrders = orders.filter(function(o){ return new Date(o.createdAt).toDateString()===today; });
+  if (!todayOrders.length) { toast('⚠️ لا توجد معاملات اليوم'); return; }
+  if (!confirm('سيتم حذف '+todayOrders.length+' معاملة من معاملات اليوم نهائياً. هل أنت متأكد؟')) return;
+  if (!confirm('تأكيد أخير: هذا الإجراء لا يمكن التراجع عنه. حذف معاملات اليوم؟')) return;
+
+  Promise.all(todayOrders.map(function(o){ return db.ref('orders/'+o.id).remove(); }))
+    .then(function(){ toast('✓ تم تصفير معاملات اليوم ('+todayOrders.length+' معاملة)'); })
+    .catch(function(e){ toast('⚠️ خطأ: '+e.message); });
 }
 
 /* ===== SETTINGS ===== */
