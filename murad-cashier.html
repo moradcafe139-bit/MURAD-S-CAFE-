@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MURAD'S — نقطة البيع (كاشير)</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --green:#39D043;--green-l:#4EE858;--green-d:#27A030;
+  --bg:#F7F8FA;--white:#FFFFFF;--black:#111111;
+  --text:#111111;--muted:#666677;--border:rgba(0,0,0,.1);--border2:rgba(0,0,0,.16);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+
+/* ── LOGIN ── */
+#login-screen{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;z-index:999}
+.login-box{background:#fff;border:1.5px solid var(--border2);border-radius:20px;padding:2.5rem;width:340px;text-align:center;box-shadow:0 4px 32px rgba(0,0,0,.08)}
+.login-logo{font-size:1.4rem;font-weight:900;letter-spacing:3px;color:var(--black);text-transform:uppercase;margin-bottom:.2rem}
+.login-logo span{color:var(--green)}
+.login-sub{font-size:.78rem;color:var(--muted);margin-bottom:1.8rem;letter-spacing:2px;text-transform:uppercase}
+.login-field{margin-bottom:1rem;text-align:right}
+.login-label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.4rem}
+.login-input{width:100%;background:#F7F8FA;border:1.5px solid var(--border2);border-radius:10px;padding:.75rem 1rem;color:var(--text);font-family:'Cairo',sans-serif;font-size:.95rem;outline:none;transition:.2s}
+.login-input:focus{border-color:var(--green);background:#fff}
+.login-btn{width:100%;background:var(--black);color:var(--green);border:none;border-radius:10px;padding:.85rem;font-family:'Cairo',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;margin-top:.5rem;transition:.2s}
+.login-btn:hover{background:#222}
+.login-error{color:#D93025;font-size:.82rem;margin-top:.6rem;display:none}
+
+/* ── LAYOUT ── */
+#app{display:none;height:100vh;display:flex;flex-direction:column}
+#app.show{display:flex}
+.topbar{background:#fff;border-bottom:1.5px solid var(--border);padding:.8rem 1.5rem;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 8px rgba(0,0,0,.05);flex-shrink:0}
+.tb-logo{font-size:1rem;font-weight:900;letter-spacing:3px;color:var(--black);text-transform:uppercase}
+.tb-logo span{color:var(--green)}
+.tb-right{display:flex;align-items:center;gap:1rem}
+.tb-stat{text-align:right}
+.tb-stat-label{font-size:.68rem;color:var(--muted);letter-spacing:1px}
+.tb-stat-val{font-size:1.1rem;font-weight:900;color:#1a6e1e}
+.logout-btn{background:none;border:1.5px solid var(--border2);border-radius:8px;padding:.4rem .8rem;color:var(--muted);font-size:.78rem;cursor:pointer;font-family:'Cairo',sans-serif;transition:.2s}
+.logout-btn:hover{color:#D93025;border-color:#D93025}
+
+/* ── MAIN GRID ── */
+#main{flex:1;display:grid;grid-template-columns:1fr 380px;overflow:hidden}
+
+/* ── LEFT: PRODUCTS ── */
+#products-panel{overflow-y:auto;padding:1.2rem}
+.cat-tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.2rem;position:sticky;top:0;background:var(--bg);padding-bottom:.5rem;z-index:5}
+.cat-tab{padding:.5rem 1.2rem;border-radius:30px;border:1.5px solid var(--border2);background:#fff;color:var(--muted);font-family:'Cairo',sans-serif;font-size:.85rem;cursor:pointer;transition:.15s;font-weight:600}
+.cat-tab.active{background:var(--black);color:var(--green);border-color:var(--black)}
+.cat-tab:not(.active):hover{border-color:var(--green);color:#1a6e1e}
+.products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.8rem}
+.prod-card{background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1rem .8rem;text-align:center;cursor:pointer;transition:.15s;box-shadow:0 1px 4px rgba(0,0,0,.04);user-select:none}
+.prod-card:hover{border-color:var(--green);box-shadow:0 3px 12px rgba(57,208,67,.18);transform:translateY(-2px)}
+.prod-card:active{transform:scale(.96)}
+.prod-card.unavail{opacity:.35;pointer-events:none}
+.prod-emoji{font-size:2.2rem;margin-bottom:.5rem}
+.prod-name{font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:.25rem;line-height:1.3}
+.prod-price{font-size:.85rem;font-weight:900;color:#1a6e1e}
+
+/* ── RIGHT: ORDER PANEL ── */
+#order-panel{background:#fff;border-right:1.5px solid var(--border);display:flex;flex-direction:column}
+.op-header{padding:1.1rem 1.2rem;border-bottom:1.5px solid var(--border)}
+.op-title{font-size:1rem;font-weight:700;margin-bottom:.8rem}
+.order-type-tabs{display:flex;background:#F7F8FA;border-radius:12px;padding:4px;border:1.5px solid var(--border)}
+.ot-tab{flex:1;padding:.55rem;background:none;border:none;border-radius:9px;color:var(--muted);font-family:'Cairo',sans-serif;font-size:.85rem;cursor:pointer;transition:.2s;font-weight:700;display:flex;align-items:center;justify-content:center;gap:.35rem}
+.ot-tab.active{background:var(--black);color:var(--green)}
+
+#cart-list{flex:1;overflow-y:auto;padding:.8rem 1.2rem}
+.cart-empty-state{text-align:center;color:var(--muted);padding:3rem 1rem;font-size:.9rem}
+.cart-empty-icon{font-size:2.5rem;margin-bottom:.6rem;opacity:.4}
+.cart-row{display:flex;align-items:center;gap:.7rem;padding:.7rem 0;border-bottom:1px solid var(--border)}
+.cart-row:last-child{border-bottom:none}
+.cr-emoji{font-size:1.4rem;width:34px;text-align:center;flex-shrink:0}
+.cr-info{flex:1;min-width:0}
+.cr-name{font-size:.86rem;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cr-price{font-size:.76rem;color:var(--muted)}
+.cr-qty{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
+.qbtn{width:24px;height:24px;background:var(--black);border:none;border-radius:50%;color:var(--green);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:.15s}
+.qbtn:hover{background:#333}
+.qval{font-size:.88rem;min-width:18px;text-align:center;font-weight:700}
+.cr-total{font-size:.88rem;font-weight:900;color:#1a6e1e;min-width:60px;text-align:left}
+.cr-del{background:none;border:none;color:#D93025;font-size:1rem;cursor:pointer;opacity:.6;transition:.15s;flex-shrink:0;padding:.2rem}
+.cr-del:hover{opacity:1}
+
+/* ── FOOTER (TOTAL + ACTIONS) ── */
+.op-footer{padding:1.1rem 1.2rem;border-top:1.5px solid var(--border)}
+.notes-row{margin-bottom:.8rem}
+.notes-input{width:100%;background:#F7F8FA;border:1.5px solid var(--border2);border-radius:10px;padding:.6rem .9rem;color:var(--text);font-family:'Cairo',sans-serif;font-size:.85rem;outline:none;transition:.2s}
+.notes-input:focus{border-color:var(--green);background:#fff}
+.total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;font-size:1.3rem;font-weight:900}
+.total-row span:last-child{color:#1a6e1e}
+.action-row{display:flex;gap:.6rem}
+.btn-clear{flex:1;background:#F7F8FA;border:1.5px solid var(--border2);color:var(--muted);border-radius:12px;padding:.85rem;font-family:'Cairo',sans-serif;font-size:.92rem;font-weight:700;cursor:pointer;transition:.2s}
+.btn-clear:hover{background:#eee;color:var(--text)}
+.btn-confirm{flex:2;background:var(--black);color:var(--green);border:none;border-radius:12px;padding:.85rem;font-family:'Cairo',sans-serif;font-size:.96rem;font-weight:900;cursor:pointer;transition:.2s}
+.btn-confirm:hover{background:#222}
+.btn-confirm:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(80px);background:var(--black);color:var(--green);padding:.7rem 1.6rem;border-radius:50px;font-weight:700;font-size:.9rem;font-family:'Cairo',sans-serif;transition:transform .35s cubic-bezier(.34,1.56,.64,1);z-index:999;white-space:nowrap;border:1px solid var(--green)}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── SUCCESS OVERLAY ── */
+#success-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center}
+#success-overlay.open{display:flex}
+.success-box{background:#fff;border-radius:20px;padding:2.5rem;text-align:center;width:min(360px,90%);box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.success-icon{width:64px;height:64px;background:rgba(57,208,67,.1);border-radius:50%;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;font-size:1.8rem;border:2px solid var(--green)}
+.success-title{font-size:1.2rem;font-weight:900;color:#1a6e1e;margin-bottom:.4rem}
+.success-id{display:inline-block;background:rgba(57,208,67,.08);border:1.5px solid rgba(57,208,67,.3);border-radius:8px;padding:.3rem .9rem;font-size:1rem;color:#1a6e1e;font-weight:900;letter-spacing:2px;margin:.6rem 0;font-family:monospace}
+.success-sub{color:var(--muted);font-size:.85rem;margin-bottom:1.2rem}
+.success-btn{background:var(--black);color:var(--green);border:none;border-radius:10px;padding:.75rem 1.8rem;font-family:'Cairo',sans-serif;font-size:.92rem;font-weight:700;cursor:pointer;transition:.2s}
+.success-btn:hover{background:#222}
+
+@media(max-width:900px){
+  #main{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  #order-panel{border-right:none;border-top:1.5px solid var(--border);max-height:50vh}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">MURAD<span>·</span>S</div>
+    <div class="login-sub">نقطة البيع — كاشير</div>
+    <div class="login-field">
+      <label class="login-label">البريد الإلكتروني</label>
+      <input class="login-input" type="text" id="login-user" placeholder="cashier@muradcafe.com" autocomplete="off">
+    </div>
+    <div class="login-field">
+      <label class="login-label">كلمة المرور</label>
+      <input class="login-input" type="password" id="login-pass" placeholder="••••••">
+    </div>
+    <button class="login-btn" onclick="doLogin()">دخول →</button>
+    <div class="login-error" id="login-err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="tb-logo">MURAD<span>·</span>S — كاشير</div>
+    <div class="tb-right">
+      <div class="tb-stat">
+        <div class="tb-stat-label">مبيعات اليوم</div>
+        <div class="tb-stat-val" id="today-revenue">0 ج.م</div>
+      </div>
+      <div class="tb-stat">
+        <div class="tb-stat-label">عدد الطلبات</div>
+        <div class="tb-stat-val" id="today-count">0</div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">خروج</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <!-- PRODUCTS -->
+    <div id="products-panel">
+      <div class="cat-tabs" id="cat-tabs"></div>
+      <div class="products-grid" id="products-grid"></div>
+    </div>
+
+    <!-- ORDER -->
+    <div id="order-panel">
+      <div class="op-header">
+        <div class="op-title">طلب جديد</div>
+        <div class="order-type-tabs">
+          <button class="ot-tab active" id="tab-takeaway" onclick="setOrderType('takeaway')">🥡 تيك أواي</button>
+          <button class="ot-tab" id="tab-table" onclick="setOrderType('table')">🪑 طاولة</button>
+        </div>
+        <div id="table-input-row" style="display:none;margin-top:.7rem">
+          <input class="notes-input" type="number" id="table-num" placeholder="رقم الطاولة" min="1" max="99">
+        </div>
+      </div>
+
+      <div id="cart-list">
+        <div class="cart-empty-state" id="cart-empty">
+          <div class="cart-empty-icon">🛒</div>
+          <div>اضغط على المنتجات لإضافتها للطلب</div>
+        </div>
+      </div>
+
+      <div class="op-footer">
+        <div class="notes-row">
+          <input class="notes-input" type="text" id="order-notes" placeholder="ملاحظات (اختياري)">
+        </div>
+        <div class="total-row">
+          <span>الإجمالي</span>
+          <span id="cart-total">0 ج.م</span>
+        </div>
+        <div class="action-row">
+          <button class="btn-clear" onclick="clearCart()">إلغاء</button>
+          <button class="btn-confirm" id="confirm-btn" onclick="confirmOrder()">تأكيد الطلب ✓</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SUCCESS OVERLAY -->
+<div id="success-overlay">
+  <div class="success-box">
+    <div class="success-icon">✓</div>
+    <div class="success-title">تم إنشاء الطلب</div>
+    <div class="success-id" id="success-order-id"></div>
+    <div class="success-sub">تم إرسال الطلب للمطبخ وتسجيله في الإيرادات</div>
+    <button class="success-btn" onclick="closeSuccess()">طلب جديد →</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase Compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+/* ===== FIREBASE CONFIG ===== */
+var FB = {
+  apiKey:"AIzaSyB56OuMztZjQ8Ev6qsm6iB7CJswn_N7fVM",
+  authDomain:"murad-s-cafe.firebaseapp.com",
+  databaseURL:"https://murad-s-cafe-default-rtdb.firebaseio.com",
+  projectId:"murad-s-cafe",
+  storageBucket:"murad-s-cafe.firebasestorage.app",
+  messagingSenderId:"438256817002",
+  appId:"1:438256817002:web:1aa2217fcf92bc48fa4b13"
+};
+firebase.initializeApp(FB);
+var db   = firebase.database();
+var auth = firebase.auth();
+
+/* ===== STATE ===== */
+var menuData  = [];
+var cart      = {};
+var orderType = 'takeaway';
+var activeCat = 'الكل';
+var allOrders = [];
+
+/* ===== AUTH ===== */
+auth.onAuthStateChanged(function(user) {
+  if (user) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').classList.add('show');
+    startListeners();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').classList.remove('show');
+    var b = document.querySelector('.login-btn');
+    if (b) { b.textContent = 'دخول →'; b.disabled = false; }
+  }
+});
+
+function doLogin() {
+  var u = document.getElementById('login-user').value.trim();
+  var p = document.getElementById('login-pass').value.trim();
+  var err = document.getElementById('login-err');
+  var btn = document.querySelector('.login-btn');
+  if (!u || !p) { showErr('⚠️ أدخل البريد وكلمة المرور'); return; }
+  var email = u.indexOf('@') > -1 ? u : u + '@muradcafe.com';
+  btn.textContent = '⏳...'; btn.disabled = true;
+  auth.signInWithEmailAndPassword(email, p).catch(function(e) {
+    btn.textContent = 'دخول →'; btn.disabled = false;
+    var m = {
+      'auth/invalid-credential': '❌ البريد أو كلمة المرور غلط',
+      'auth/user-not-found': '❌ الحساب غير موجود',
+      'auth/wrong-password': '❌ كلمة المرور غلط',
+      'auth/too-many-requests': '⚠️ محاولات كثيرة، انتظر قليلاً'
+    };
+    showErr(m[e.code] || ('❌ ' + e.message));
+  });
+}
+function doLogout() { auth.signOut(); }
+function showErr(msg) {
+  var e = document.getElementById('login-err');
+  e.style.display = 'block'; e.textContent = msg;
+  setTimeout(function(){ e.style.display = 'none'; }, 4000);
+}
+document.getElementById('login-pass').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') doLogin();
+});
+
+/* ===== FIREBASE LISTENERS ===== */
+function startListeners() {
+  db.ref('menu').on('value', function(snap) {
+    var val = snap.val();
+    menuData = val ? Object.values(val).map(function(x){ return Object.assign({}, x, {id:+x.id}); }) : [];
+    renderCats();
+    renderProducts();
+  });
+
+  db.ref('orders').on('value', function(snap) {
+    var val = snap.val();
+    allOrders = val ? Object.values(val) : [];
+    updateStats();
+  });
+}
+
+/* ===== STATS ===== */
+function updateStats() {
+  var today = new Date().toDateString();
+  var todayOrders = allOrders.filter(function(o){ return new Date(o.createdAt).toDateString() === today; });
+  var revenue = todayOrders.reduce(function(s,o){ return s + (o.total||0); }, 0);
+  document.getElementById('today-revenue').textContent = revenue + ' ج.م';
+  document.getElementById('today-count').textContent = todayOrders.length;
+}
+
+/* ===== CATEGORIES ===== */
+function renderCats() {
+  var cats = ['الكل'];
+  menuData.forEach(function(x){ if (cats.indexOf(x.cat) === -1) cats.push(x.cat); });
+  document.getElementById('cat-tabs').innerHTML = cats.map(function(c) {
+    return '<button class="cat-tab '+(c===activeCat?'active':'')+'" onclick="filterCat(&quot;'+c+'&quot;,this)">'+c+'</button>';
+  }).join('');
+}
+function filterCat(c, btn) {
+  activeCat = c;
+  document.querySelectorAll('.cat-tab').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderProducts();
+}
+
+/* ===== PRODUCTS GRID ===== */
+function renderProducts() {
+  var items = activeCat === 'الكل' ? menuData : menuData.filter(function(x){ return x.cat === activeCat; });
+  document.getElementById('products-grid').innerHTML = items.map(function(it) {
+    var unavail = it.available === false;
+    return '<div class="prod-card '+(unavail?'unavail':'')+'" onclick="addToCart('+it.id+')">' +
+      '<div class="prod-emoji">'+(it.emoji||'☕')+'</div>' +
+      '<div class="prod-name">'+it.name+'</div>' +
+      '<div class="prod-price">'+it.price+' ج.م</div>' +
+    '</div>';
+  }).join('') || '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:3rem">لا منتجات</div>';
+}
+
+/* ===== CART ===== */
+function addToCart(id) {
+  var it = menuData.find(function(x){ return +x.id === +id; });
+  if (!it || it.available === false) return;
+  if (!cart[id]) cart[id] = Object.assign({}, it, {qty:0});
+  cart[id].qty++;
+  renderCart();
+}
+function changeQty(id, d) {
+  if (!cart[id]) return;
+  cart[id].qty += d;
+  if (cart[id].qty <= 0) delete cart[id];
+  renderCart();
+}
+function removeFromCart(id) { delete cart[id]; renderCart(); }
+
+function renderCart() {
+  var items = Object.values(cart).filter(function(x){ return x.qty > 0; });
+  var list = document.getElementById('cart-list');
+  var total = 0;
+
+  if (!items.length) {
+    list.innerHTML = '<div class="cart-empty-state" id="cart-empty"><div class="cart-empty-icon">🛒</div><div>اضغط على المنتجات لإضافتها للطلب</div></div>';
+  } else {
+    list.innerHTML = items.map(function(it) {
+      var lineTotal = it.price * it.qty;
+      total += lineTotal;
+      return '<div class="cart-row">' +
+        '<div class="cr-emoji">'+(it.emoji||'☕')+'</div>' +
+        '<div class="cr-info">' +
+          '<div class="cr-name">'+it.name+'</div>' +
+          '<div class="cr-price">'+it.price+' ج.م</div>' +
+        '</div>' +
+        '<div class="cr-qty">' +
+          '<button class="qbtn" onclick="changeQty('+it.id+',-1)">−</button>' +
+          '<span class="qval">'+it.qty+'</span>' +
+          '<button class="qbtn" onclick="changeQty('+it.id+',1)">+</button>' +
+        '</div>' +
+        '<div class="cr-total">'+lineTotal+' ج.م</div>' +
+        '<button class="cr-del" onclick="removeFromCart('+it.id+')">✕</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  document.getElementById('cart-total').textContent = total + ' ج.م';
+}
+
+/* ===== ORDER TYPE ===== */
+function setOrderType(t) {
+  orderType = t;
+  document.getElementById('tab-takeaway').classList.toggle('active', t === 'takeaway');
+  document.getElementById('tab-table').classList.toggle('active', t === 'table');
+  document.getElementById('table-input-row').style.display = t === 'table' ? 'block' : 'none';
+}
+
+/* ===== CLEAR CART ===== */
+function clearCart() {
+  cart = {};
+  document.getElementById('order-notes').value = '';
+  document.getElementById('table-num').value = '';
+  renderCart();
+}
+
+/* ===== CONFIRM ORDER ===== */
+function confirmOrder() {
+  var items = Object.values(cart).filter(function(x){ return x.qty > 0; });
+  if (!items.length) { showToast('⚠️ السلة فاضية'); return; }
+
+  if (orderType === 'table') {
+    var tnum = document.getElementById('table-num').value;
+    if (!tnum) { showToast('⚠️ أدخل رقم الطاولة'); return; }
+  }
+
+  var orderId = 'MRD-' + Date.now().toString(36).toUpperCase();
+  var total = items.reduce(function(s,x){ return s + x.price*x.qty; }, 0);
+
+  var order = {
+    id: orderId,
+    type: orderType === 'table' ? 'table' : 'takeaway',
+    table: orderType === 'table' ? document.getElementById('table-num').value : null,
+    source: 'cashier',
+    customer: null,
+    items: items.map(function(x){ return {id:x.id, name:x.name, emoji:x.emoji, price:x.price, qty:x.qty}; }),
+    notes: document.getElementById('order-notes').value,
+    total: total,
+    status: 'preparing',
+    createdAt: new Date().toISOString()
+  };
+
+  var btn = document.getElementById('confirm-btn');
+  btn.textContent = '⏳ جارٍ الإرسال...'; btn.disabled = true;
+
+  db.ref('orders/' + orderId).set(order).then(function() {
+    btn.textContent = 'تأكيد الطلب ✓'; btn.disabled = false;
+    document.getElementById('success-order-id').textContent = orderId;
+    document.getElementById('success-overlay').classList.add('open');
+  }).catch(function(e) {
+    btn.textContent = 'تأكيد الطلب ✓'; btn.disabled = false;
+    showToast('⚠️ خطأ: ' + e.message);
+  });
+}
+
+function closeSuccess() {
+  document.getElementById('success-overlay').classList.remove('open');
+  clearCart();
+  setOrderType('takeaway');
+}
+
+/* ===== TOAST ===== */
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2800);
+}
+</script>
+</body>
+</html>
