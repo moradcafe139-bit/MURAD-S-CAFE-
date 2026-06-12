@@ -527,7 +527,13 @@ var FB = {
   messagingSenderId:"438256817002",
   appId:"1:438256817002:web:1aa2217fcf92bc48fa4b13"
 };
-firebase.initializeApp(FB);
+try {
+  firebase.initializeApp(FB);
+  console.log('Firebase initialized OK:', FB.projectId);
+} catch(e) {
+  console.error('Firebase init error:', e.message);
+  alert('خطأ في تهيئة Firebase: ' + e.message);
+}
 var db   = firebase.database();
 var auth = firebase.auth();
 
@@ -582,15 +588,24 @@ function doLogin() {
   if (!u||!p) { showErr(e,'⚠️ أدخل البريد وكلمة المرور'); return; }
   var email = u.indexOf('@')>-1 ? u : u+'@muradcafe.com';
   b.textContent='⏳...'; b.disabled=true;
-  auth.signInWithEmailAndPassword(email,p).catch(function(err) {
+  console.log('Attempting login with:', email);
+  auth.signInWithEmailAndPassword(email,p).then(function(cred){
+    console.log('Login success:', cred.user.email);
+  }).catch(function(err) {
     b.textContent='دخول →'; b.disabled=false;
+    console.error('Login error code:', err.code, '| message:', err.message);
     var m={
       'auth/invalid-credential':'❌ البريد أو كلمة المرور غلط',
-      'auth/user-not-found':'❌ الحساب غير موجود',
+      'auth/invalid-email':'❌ صيغة البريد الإلكتروني غير صحيحة: '+email,
+      'auth/user-not-found':'❌ الحساب غير موجود: '+email,
       'auth/wrong-password':'❌ كلمة المرور غلط',
-      'auth/too-many-requests':'⚠️ محاولات كثيرة، انتظر قليلاً'
+      'auth/user-disabled':'❌ الحساب معطّل',
+      'auth/too-many-requests':'⚠️ محاولات كثيرة، انتظر قليلاً',
+      'auth/network-request-failed':'⚠️ خطأ في الشبكة — تأكد من الاتصال بالإنترنت',
+      'auth/operation-not-allowed':'⚠️ تسجيل الدخول بالإيميل وكلمة المرور غير مفعّل في Firebase',
+      'auth/configuration-not-found':'⚠️ Authentication غير مفعّل في مشروع Firebase'
     };
-    showErr(e, m[err.code]||'❌ '+err.message);
+    showErr(e, m[err.code]||('❌ ['+err.code+'] '+err.message));
   });
 }
 function doLogout() { auth.signOut(); }
