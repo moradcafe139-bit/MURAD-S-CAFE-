@@ -754,7 +754,7 @@ function stat(label, val, cls) {
 
 /* ===== ORDER CARD ===== */
 function oCard(o) {
-  var type = o.type==='delivery' ? '🛵 توصيل' : '🪑 طاولة '+o.table;
+  var type = o.type==='delivery' ? '🛵 توصيل' : o.type==='takeaway' ? '🥡 تيك أواي' : '🪑 طاولة '+o.table;
   var cust = (o.type==='delivery'&&o.customer) ?
     '<div style="font-size:.78rem;color:var(--muted);margin-top:.3rem">👤 '+o.customer.name+' | 📞 '+o.customer.phone+'</div>'+
     '<div style="font-size:.78rem;color:var(--muted)">📍 '+o.customer.address+'</div>' : '';
@@ -948,11 +948,17 @@ function addNewUser() {
   var uid = 'u'+Date.now();
   db.ref('users/'+uid).set({uid:uid,name:name,email:email,role:role,createdAt:new Date().toISOString()})
     .then(function(){
-      ['new-user-name','new-user-email','new-user-pass'].forEach(function(id){I(id).value='';});
       note.style.display='block';
-      note.innerHTML='✅ تم الحفظ — أضف الحساب من <b>Firebase Console → Authentication → Add User</b> بنفس البريد: <b>'+email+'</b>';
+      note.innerHTML='✅ تم حفظ بيانات المستخدم في النظام.<br><br>'+
+        '<b>خطوة أخيرة لتفعيل تسجيل الدخول:</b><br>'+
+        '1. روح <b>Firebase Console → Authentication → Users</b><br>'+
+        '2. اضغط <b>Add user</b><br>'+
+        '3. البريد: <code style="background:rgba(0,0,0,.06);padding:2px 6px;border-radius:4px">'+email+'</code><br>'+
+        '4. كلمة المرور: <code style="background:rgba(0,0,0,.06);padding:2px 6px;border-radius:4px">'+pass+'</code><br><br>'+
+        'بعد كده '+(name||'المستخدم')+' يقدر يسجل دخول من صفحة الكاشير أو الأدمن حسب الصلاحية.';
+      ['new-user-name','new-user-email','new-user-pass'].forEach(function(id){I(id).value='';});
       toast('✓ تم حفظ بيانات المستخدم');
-      setTimeout(function(){note.style.display='none';},12000);
+      setTimeout(function(){note.style.display='none';},25000);
     }).catch(function(e){toast('⚠️ '+e.message);});
 }
 function delUser(uid) {
@@ -985,12 +991,15 @@ function drawReports() {
   }).join('')||'<p style="color:var(--muted);font-size:.85rem">لا بيانات بعد</p>';
   var tC=orders.filter(function(o){return o.type==='table';}).length;
   var dC=orders.filter(function(o){return o.type==='delivery';}).length;
+  var kC=orders.filter(function(o){return o.type==='takeaway';}).length;
   var tot=orders.length||1;
   I('order-types-report').innerHTML=
     '<div class="report-item"><span class="report-item-name">🪑 طاولة</span><div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(tC/tot*100)+'%"></div></div><span class="report-item-val">'+tC+'</span></div>'+
+    '<div class="report-item"><span class="report-item-name">🥡 تيك أواي</span><div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(kC/tot*100)+'%"></div></div><span class="report-item-val">'+kC+'</span></div>'+
     '<div class="report-item"><span class="report-item-name">🛵 توصيل</span><div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(dC/tot*100)+'%"></div></div><span class="report-item-val">'+dC+'</span></div>';
   I('completed-orders').innerHTML=done.slice(0,8).map(function(o){
-    return '<div class="report-item"><span class="report-item-name">'+o.id+' · '+(o.type==='table'?'🪑 '+o.table:'🛵')+'</span>'+
+    var typeIcon = o.type==='table' ? '🪑 '+o.table : o.type==='takeaway' ? '🥡' : '🛵';
+    return '<div class="report-item"><span class="report-item-name">'+o.id+' · '+typeIcon+'</span>'+
       '<span style="font-size:.75rem;color:var(--muted)">'+fmtTime(o.createdAt)+'</span>'+
       '<span class="report-item-val">'+o.total+' ج.م</span></div>';
   }).join('')||'<p style="color:var(--muted);font-size:.85rem">لا طلبات مكتملة بعد</p>';
@@ -1030,7 +1039,7 @@ function printR(id) {
   pa.innerHTML='<div style="text-align:center;margin-bottom:16px"><div style="font-size:22px;font-weight:900">☕ مراد كافيه</div><div style="font-size:13px;color:#666">'+fmtTime(o.createdAt)+'</div></div>'+
     '<div style="border-top:1px dashed #ccc;border-bottom:1px dashed #ccc;padding:10px 0;margin:10px 0">'+
     '<div style="display:flex;justify-content:space-between;font-size:13px"><span>رقم الطلب</span><b>'+o.id+'</b></div>'+
-    '<div style="display:flex;justify-content:space-between;font-size:13px"><span>النوع</span><b>'+(o.type==='table'?'طاولة '+o.table:'توصيل')+'</b></div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:13px"><span>النوع</span><b>'+(o.type==='table'?'طاولة '+o.table:o.type==='takeaway'?'تيك أواي':'توصيل')+'</b></div>'+
     (o.customer?'<div style="font-size:12px;color:#555">'+o.customer.name+' | '+o.customer.phone+'</div>':'')+
     '</div>'+
     '<table style="width:100%;font-size:13px"><tr style="font-weight:700"><td>المنتج</td><td>الكمية</td><td>السعر</td></tr>'+
