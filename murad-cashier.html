@@ -219,6 +219,13 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);overf
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 /* ===== FIREBASE CONFIG ===== */
+document.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+document.addEventListener('keydown', function(e){
+  if (e.key === 'F12') e.preventDefault();
+  if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) e.preventDefault();
+  if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) e.preventDefault();
+});
+
 var FB = {
   apiKey:"AIzaSyB56OuMztZjQ8Ev6qsm6iB7CJswn_N7fVM",
   authDomain:"murad-s-cafe.firebaseapp.com",
