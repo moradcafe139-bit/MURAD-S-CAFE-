@@ -158,7 +158,7 @@ footer{background:#111111;padding:2.5rem 2rem;text-align:center}
 
 
 /* ── TRACK ORDER ── */
-#track-btn-wrap{position:fixed;bottom:1.5rem;right:1.5rem;z-index:200;display:none}
+#track-btn-wrap{position:fixed;bottom:1.5rem;right:1.5rem;z-index:200;display:block}
 .track-fab{background:#111;color:#39D043;border:2px solid #39D043;border-radius:50px;padding:.7rem 1.3rem;font-family:'Cairo',sans-serif;font-size:.88rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:.5rem;box-shadow:0 4px 18px rgba(57,208,67,.3);transition:.2s;white-space:nowrap}
 .track-fab:hover{background:#222;transform:translateY(-2px);box-shadow:0 6px 24px rgba(57,208,67,.4)}
 .track-fab .dot{width:8px;height:8px;border-radius:50%;background:#39D043;animation:blink2 1.2s infinite}
@@ -403,7 +403,7 @@ footer{background:#111111;padding:2.5rem 2rem;text-align:center}
     <div id="track-search-section">
       <div class="track-input-row">
         <input class="track-input" id="track-id-input" placeholder="أدخل رقم الطلب MRD-XXXX" dir="ltr">
-        <button class="track-search-btn" onclick="searchOrder()">بحث</button>
+        <button class="track-search-btn" id="track-search-btn" onclick="searchOrder()">بحث</button>
       </div>
     </div>
 
@@ -635,6 +635,7 @@ function placeOrder() {
     showToast('🎉 تم إرسال طلبك بنجاح!');
     // Show track FAB and start live tracking
     trackingOrderId = orderId;
+    localStorage.setItem('murad_last_order', orderId);
     document.getElementById('track-btn-wrap').style.display = 'block';
     document.getElementById('track-id-input').value = orderId;
     startLiveTracking(orderId);
@@ -659,7 +660,7 @@ function showToast(msg) {
   setTimeout(function(){ t.classList.remove('show'); }, 2800);
 }
 /* ===== TRACK ORDER ===== */
-var trackingOrderId = null;
+var trackingOrderId = localStorage.getItem('murad_last_order') || null;
 
 var STEPS = [
   { key:'pending',   icon:'📋', title:'تم استلام الطلب',    desc:'وصل طلبك وبنجهزه الحين' },
