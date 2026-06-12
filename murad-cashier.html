@@ -117,6 +117,34 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);overf
   #main{grid-template-columns:1fr;grid-template-rows:1fr auto}
   #order-panel{border-right:none;border-top:1.5px solid var(--border);max-height:50vh}
 }
+
+/* SHIFT SCREEN */
+#shift-screen{position:fixed;inset:0;background:#fff;display:none;align-items:center;justify-content:center;z-index:998}
+#shift-screen.show{display:flex}
+.shift-box{background:#fff;border:1.5px solid var(--border2);border-radius:20px;padding:2.5rem;width:380px;text-align:center;box-shadow:0 4px 32px rgba(0,0,0,.08)}
+.shift-icon{width:64px;height:64px;background:rgba(57,208,67,.1);border-radius:50%;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;font-size:1.8rem;border:2px solid var(--green)}
+.shift-title{font-size:1.2rem;font-weight:900;color:var(--black);margin-bottom:.4rem}
+.shift-sub{color:var(--muted);font-size:.85rem;margin-bottom:1.5rem}
+.shift-next-num{display:inline-block;background:rgba(57,208,67,.08);border:1.5px solid rgba(57,208,67,.3);border-radius:10px;padding:.6rem 1.4rem;font-size:1.4rem;color:#1a6e1e;font-weight:900;letter-spacing:2px;margin-bottom:1.5rem;font-family:monospace}
+.shift-start-btn{width:100%;background:var(--black);color:var(--green);border:none;border-radius:10px;padding:.9rem;font-family:'Cairo',sans-serif;font-size:1rem;font-weight:900;cursor:pointer;transition:.2s}
+.shift-start-btn:hover{background:#222}
+.shift-start-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* SHIFT BADGE IN TOPBAR */
+.shift-badge{display:flex;align-items:center;gap:.5rem;background:rgba(57,208,67,.08);border:1.5px solid rgba(57,208,67,.25);border-radius:10px;padding:.4rem .9rem}
+.shift-badge-num{font-size:.95rem;font-weight:900;color:#1a6e1e;font-family:monospace}
+.shift-badge-label{font-size:.68rem;color:var(--muted);letter-spacing:1px}
+.btn-close-shift{background:var(--red-bg);color:#D93025;border:1px solid rgba(217,48,37,.25);border-radius:8px;padding:.4rem .8rem;font-size:.78rem;cursor:pointer;font-family:'Cairo',sans-serif;font-weight:700;transition:.2s}
+.btn-close-shift:hover{background:#D93025;color:#fff}
+
+/* SHIFT CLOSE CONFIRM OVERLAY */
+#shift-close-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:center;justify-content:center}
+#shift-close-overlay.open{display:flex}
+.shift-summary-box{background:#fff;border-radius:20px;padding:2rem;text-align:center;width:min(380px,90%);box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.shift-summary-title{font-size:1.1rem;font-weight:900;margin-bottom:1.2rem}
+.shift-summary-row{display:flex;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid var(--border);font-size:.92rem}
+.shift-summary-row:last-child{border-bottom:none;font-weight:900;font-size:1.1rem;color:#1a6e1e;padding-top:.8rem}
+.shift-summary-actions{display:flex;gap:.6rem;margin-top:1.3rem}
 </style>
 </head>
 <body>
@@ -139,13 +167,45 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);overf
   </div>
 </div>
 
+<!-- SHIFT START -->
+<div id="shift-screen">
+  <div class="shift-box">
+    <div class="shift-icon">🕐</div>
+    <div class="shift-title">بدء شيفت جديد</div>
+    <div class="shift-sub">سيبدأ الشيفت بإيراد صفر، وسيتم تسجيل جميع الطلبات تحت رقمه</div>
+    <div class="shift-next-num" id="next-shift-num">#1</div>
+    <button class="shift-start-btn" id="start-shift-btn" onclick="startNewShift()">بدء الشيفت →</button>
+  </div>
+</div>
+
+<!-- SHIFT CLOSE CONFIRM -->
+<div id="shift-close-overlay">
+  <div class="shift-summary-box">
+    <div class="shift-summary-title">إغلاق الشيفت <span id="close-shift-num"></span></div>
+    <div class="shift-summary-row"><span>عدد الطلبات</span><span id="close-shift-count">0</span></div>
+    <div class="shift-summary-row"><span>إجمالي الإيرادات</span><span id="close-shift-total">0 ج.م</span></div>
+    <div class="shift-summary-actions">
+      <button class="btn-clear" onclick="closeCloseShift()" style="flex:1">تراجع</button>
+      <button class="btn-confirm" onclick="confirmCloseShift()" style="flex:2">تأكيد الإغلاق ✓</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- APP -->
 <div id="app">
   <div class="topbar">
     <div class="tb-logo">MURAD<span>·</span>S — كاشير</div>
     <div class="tb-right">
+      <div class="shift-badge" id="shift-badge" style="display:none">
+        <div>
+          <div class="shift-badge-label">الشيفت الحالي</div>
+          <div class="shift-badge-num" id="shift-num-display">#0</div>
+        </div>
+        <button class="btn-close-shift" onclick="openCloseShift()">إغلاق الشيفت</button>
+      </div>
       <div class="tb-stat">
-        <div class="tb-stat-label">مبيعات اليوم</div>
+        <div class="tb-stat-label">مبيعات الشيفت</div>
         <div class="tb-stat-val" id="today-revenue">0 ج.م</div>
       </div>
       <div class="tb-stat">
@@ -245,6 +305,8 @@ var cart      = {};
 var orderType = 'takeaway';
 var activeCat = 'الكل';
 var allOrders = [];
+var allShifts = [];
+var currentShift = null;
 
 /* ===== AUTH ===== */
 auth.onAuthStateChanged(function(user) {
@@ -303,15 +365,92 @@ function startListeners() {
     allOrders = val ? Object.values(val) : [];
     updateStats();
   });
+
+  db.ref('shifts').on('value', function(snap) {
+    var val = snap.val();
+    allShifts = val ? Object.values(val) : [];
+    checkShiftState();
+  });
+}
+
+/* ===== SHIFT MANAGEMENT ===== */
+function checkShiftState() {
+  var open = allShifts.find(function(s){ return s.status === 'open'; });
+  if (open) {
+    currentShift = open;
+    document.getElementById('shift-screen').classList.remove('show');
+    document.getElementById('shift-badge').style.display = 'flex';
+    document.getElementById('shift-num-display').textContent = '#' + currentShift.number;
+  } else {
+    currentShift = null;
+    document.getElementById('shift-badge').style.display = 'none';
+    var nextNum = allShifts.length ? Math.max.apply(null, allShifts.map(function(s){return s.number;})) + 1 : 1;
+    document.getElementById('next-shift-num').textContent = '#' + nextNum;
+    document.getElementById('shift-screen').classList.add('show');
+  }
+  updateStats();
+}
+
+function startNewShift() {
+  var nextNum = allShifts.length ? Math.max.apply(null, allShifts.map(function(s){return s.number;})) + 1 : 1;
+  var shiftId = 'shift-' + Date.now();
+  var shift = {
+    id: shiftId,
+    number: nextNum,
+    status: 'open',
+    openedAt: new Date().toISOString(),
+    openedBy: auth.currentUser ? auth.currentUser.email : 'cashier',
+    closedAt: null
+  };
+  var btn = document.getElementById('start-shift-btn');
+  btn.textContent = '⏳...'; btn.disabled = true;
+  db.ref('shifts/' + shiftId).set(shift).then(function() {
+    btn.textContent = 'بدء الشيفت →'; btn.disabled = false;
+    showToast('✓ تم بدء شيفت #' + nextNum + ' بإيراد صفر');
+  }).catch(function(e) {
+    btn.textContent = 'بدء الشيفت →'; btn.disabled = false;
+    showToast('⚠️ خطأ: ' + e.message);
+  });
+}
+
+function openCloseShift() {
+  if (!currentShift) return;
+  var shiftOrders = allOrders.filter(function(o){ return o.shiftId === currentShift.id; });
+  var total = shiftOrders.reduce(function(s,o){ return s + (o.total||0); }, 0);
+  document.getElementById('close-shift-num').textContent = '#' + currentShift.number;
+  document.getElementById('close-shift-count').textContent = shiftOrders.length;
+  document.getElementById('close-shift-total').textContent = total + ' ج.م';
+  document.getElementById('shift-close-overlay').classList.add('open');
+}
+
+function closeCloseShift() {
+  document.getElementById('shift-close-overlay').classList.remove('open');
+}
+
+function confirmCloseShift() {
+  if (!currentShift) return;
+  db.ref('shifts/' + currentShift.id).update({
+    status: 'closed',
+    closedAt: new Date().toISOString()
+  }).then(function() {
+    closeCloseShift();
+    showToast('✓ تم إغلاق الشيفت #' + currentShift.number);
+  }).catch(function(e) {
+    showToast('⚠️ خطأ: ' + e.message);
+  });
 }
 
 /* ===== STATS ===== */
 function updateStats() {
-  var today = new Date().toDateString();
-  var todayOrders = allOrders.filter(function(o){ return new Date(o.createdAt).toDateString() === today; });
-  var revenue = todayOrders.reduce(function(s,o){ return s + (o.total||0); }, 0);
+  if (!currentShift) {
+    document.getElementById('today-revenue').textContent = '0 ج.م';
+    document.getElementById('today-count').textContent = '0';
+    return;
+  }
+  var shiftOrders = allOrders.filter(function(o){ return o.shiftId === currentShift.id; });
+  var revenue = shiftOrders.reduce(function(s,o){ return s + (o.total||0); }, 0);
   document.getElementById('today-revenue').textContent = revenue + ' ج.م';
-  document.getElementById('today-count').textContent = todayOrders.length;
+  document.getElementById('today-count').textContent = shiftOrders.length;
 }
 
 /* ===== CATEGORIES ===== */
@@ -407,6 +546,8 @@ function clearCart() {
 
 /* ===== CONFIRM ORDER ===== */
 function confirmOrder() {
+  if (!currentShift) { showToast('⚠️ يجب بدء شيفت أولاً'); return; }
+
   var items = Object.values(cart).filter(function(x){ return x.qty > 0; });
   if (!items.length) { showToast('⚠️ السلة فاضية'); return; }
 
@@ -423,6 +564,8 @@ function confirmOrder() {
     type: orderType === 'table' ? 'table' : 'takeaway',
     table: orderType === 'table' ? document.getElementById('table-num').value : null,
     source: 'cashier',
+    shiftId: currentShift.id,
+    shiftNumber: currentShift.number,
     customer: null,
     items: items.map(function(x){ return {id:x.id, name:x.name, emoji:x.emoji, price:x.price, qty:x.qty}; }),
     notes: document.getElementById('order-notes').value,
