@@ -527,13 +527,7 @@ var FB = {
   messagingSenderId:"438256817002",
   appId:"1:438256817002:web:1aa2217fcf92bc48fa4b13"
 };
-try {
-  firebase.initializeApp(FB);
-  console.log('Firebase initialized OK:', FB.projectId);
-} catch(e) {
-  console.error('Firebase init error:', e.message);
-  alert('خطأ في تهيئة Firebase: ' + e.message);
-}
+firebase.initializeApp(FB);
 var db   = firebase.database();
 var auth = firebase.auth();
 
@@ -588,24 +582,15 @@ function doLogin() {
   if (!u||!p) { showErr(e,'⚠️ أدخل البريد وكلمة المرور'); return; }
   var email = u.indexOf('@')>-1 ? u : u+'@muradcafe.com';
   b.textContent='⏳...'; b.disabled=true;
-  console.log('Attempting login with:', email);
-  auth.signInWithEmailAndPassword(email,p).then(function(cred){
-    console.log('Login success:', cred.user.email);
-  }).catch(function(err) {
+  auth.signInWithEmailAndPassword(email,p).catch(function(err) {
     b.textContent='دخول →'; b.disabled=false;
-    console.error('Login error code:', err.code, '| message:', err.message);
     var m={
       'auth/invalid-credential':'❌ البريد أو كلمة المرور غلط',
-      'auth/invalid-email':'❌ صيغة البريد الإلكتروني غير صحيحة: '+email,
-      'auth/user-not-found':'❌ الحساب غير موجود: '+email,
+      'auth/user-not-found':'❌ الحساب غير موجود',
       'auth/wrong-password':'❌ كلمة المرور غلط',
-      'auth/user-disabled':'❌ الحساب معطّل',
-      'auth/too-many-requests':'⚠️ محاولات كثيرة، انتظر قليلاً',
-      'auth/network-request-failed':'⚠️ خطأ في الشبكة — تأكد من الاتصال بالإنترنت',
-      'auth/operation-not-allowed':'⚠️ تسجيل الدخول بالإيميل وكلمة المرور غير مفعّل في Firebase',
-      'auth/configuration-not-found':'⚠️ Authentication غير مفعّل في مشروع Firebase'
+      'auth/too-many-requests':'⚠️ محاولات كثيرة، انتظر قليلاً'
     };
-    showErr(e, m[err.code]||('❌ ['+err.code+'] '+err.message));
+    showErr(e, m[err.code]||'❌ '+err.message);
   });
 }
 function doLogout() { auth.signOut(); }
@@ -677,9 +662,9 @@ function updateCatSelects() {
   // update filter tabs
   var tabs = I('menu-cat-filters');
   if (!tabs) return;
-  var tabHtml = '<button class="ftab active" onclick="filterMenuCat('all',this)">الكل</button>';
+  var tabHtml = '<button class="ftab active" onclick="filterMenuCat(&quot;all&quot;,this)">الكل</button>';
   cats.forEach(function(c){
-    tabHtml += '<button class="ftab" onclick="filterMenuCat(''+c.name+'',this)">'+c.emoji+' '+c.name+'</button>';
+    tabHtml += '<button class="ftab" onclick="filterMenuCat(&quot;'+c.name+'&quot;,this)">'+c.emoji+' '+c.name+'</button>';
   });
   tabs.innerHTML = tabHtml;
 }
@@ -696,7 +681,7 @@ function drawCategories() {
       '</div>'+
       '<div class="cat-actions">' +
         (!cat.custom ? '<span style="font-size:.72rem;color:var(--muted)">افتراضية</span>' :
-         '<button class="cat-del-btn" onclick="deleteCategory(''+encodeKey(cat.name)+'',''+cat.name+'')">🗑️ حذف</button>') +
+         '<button class="cat-del-btn" onclick="deleteCategory(&quot;'+encodeKey(cat.name)+'&quot;,&quot;'+cat.name+'&quot;)">🗑️ حذف</button>') +
       '</div>'+
     '</div>';
   }).join('') || '<div class="empty-state"><div class="empty-icon">🏷️</div><div>لا فئات</div></div>';
