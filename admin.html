@@ -206,6 +206,17 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);displ
 .btn-reset-today:hover{background:var(--red);color:#fff}
 .btn-clear-filter{background:#F7F8FA;border:1.5px solid var(--border2);color:var(--muted);border-radius:9px;padding:.5rem .9rem;font-family:'Cairo',sans-serif;font-size:.83rem;cursor:pointer;transition:.2s}
 .btn-clear-filter:hover{background:#eee;color:var(--text)}
+
+.shift-row{display:flex;align-items:center;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid var(--border);font-size:.85rem}
+.shift-row:last-child{border-bottom:none}
+.shift-row-num{font-weight:900;font-family:monospace;color:#1a6e1e;min-width:50px}
+.shift-row-status{font-size:.7rem;font-weight:700;padding:.2rem .6rem;border-radius:20px}
+.shift-row-status.open{background:var(--green-bg);color:#1a6e1e;border:1px solid var(--green-border)}
+.shift-row-status.closed{background:#F0F2F5;color:var(--muted);border:1px solid var(--border)}
+.shift-row-time{color:var(--muted);font-size:.78rem;flex:1;margin:0 .8rem}
+.shift-row-stats{display:flex;gap:1rem;align-items:center}
+.shift-row-count{color:var(--muted);font-size:.8rem}
+.shift-row-total{font-weight:900;color:#1a6e1e;min-width:70px;text-align:left}
 </style>
 </head>
 <body>
@@ -485,6 +496,10 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);displ
       <div class="report-title">📅 آخر الطلبات المكتملة</div>
       <div id="completed-orders"></div>
     </div>
+    <div class="report-card" style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.3rem;margin-top:1.2rem">
+      <div class="report-title">🕐 الشيفتات</div>
+      <div id="shifts-report"></div>
+    </div>
   </div>
 
   <!-- SETTINGS -->
@@ -586,6 +601,7 @@ var DEFAULT_CATS = [
   {name:'وجبات',emoji:'🥪',custom:false}
 ];
 var orders   = [];
+var allShifts = [];
 var cats     = DEFAULT_CATS.slice();
 var menu     = MENU.slice();
 var users    = [];
@@ -677,6 +693,13 @@ function startDB() {
   /* SETTINGS */
   db.ref('settings').on('value', function(s) {
     if (s.val()) { snd = s.val().sound!==false; applySettings(s.val()); }
+  });
+
+  /* SHIFTS */
+  db.ref('shifts').on('value', function(s) {
+    var v = s.val();
+    allShifts = v ? Object.values(v).sort(function(a,b){return b.number-a.number;}) : [];
+    if (page==='reports') drawShiftsReport();
   });
 }
 
@@ -1069,6 +1092,33 @@ function drawReports() {
       '<span style="font-size:.75rem;color:var(--muted)">'+fmtTime(o.createdAt)+'</span>'+
       '<span class="report-item-val">'+o.total+' ج.م</span></div>';
   }).join('')||'<p style="color:var(--muted);font-size:.85rem">لا طلبات مكتملة بعد</p>';
+
+  drawShiftsReport();
+}
+
+/* ===== SHIFTS REPORT ===== */
+function drawShiftsReport() {
+  var el = I('shifts-report');
+  if (!el) return;
+  if (!allShifts.length) {
+    el.innerHTML = '<p style="color:var(--muted);font-size:.85rem">لا توجد شيفتات بعد</p>';
+    return;
+  }
+  el.innerHTML = allShifts.map(function(sh){
+    var shiftOrders = orders.filter(function(o){ return o.shiftId === sh.id; });
+    var total = shiftOrders.reduce(function(s,o){ return s+(o.total||0); }, 0);
+    var statusLabel = sh.status === 'open' ? 'مفتوح' : 'مغلق';
+    var timeRange = fmtTime(sh.openedAt) + (sh.closedAt ? ' → ' + fmtTime(sh.closedAt) : ' → الآن');
+    return '<div class="shift-row">' +
+      '<span class="shift-row-num">#'+sh.number+'</span>' +
+      '<span class="shift-row-status '+sh.status+'">'+statusLabel+'</span>' +
+      '<span class="shift-row-time">'+timeRange+'</span>' +
+      '<div class="shift-row-stats">' +
+        '<span class="shift-row-count">'+shiftOrders.length+' طلب</span>' +
+        '<span class="shift-row-total">'+total+' ج.م</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
 
 /* ===== EXPORT TO EXCEL (CSV) ===== */
@@ -1077,7 +1127,7 @@ function exportRevenueExcel() {
   if (!filtered.length) { toast('⚠️ لا توجد بيانات للتصدير'); return; }
 
   var rows = [];
-  rows.push(['رقم الطلب','التاريخ','الوقت','النوع','الطاولة','الحالة','المنتجات','الملاحظات','الإجمالي (ج.م)']);
+  rows.push(['رقم الطلب','التاريخ','الوقت','النوع','الطاولة','الشيفت','الحالة','المنتجات','الملاحظات','الإجمالي (ج.م)']);
 
   filtered.sort(function(a,b){ return new Date(a.createdAt) - new Date(b.createdAt); });
 
@@ -1092,6 +1142,7 @@ function exportRevenueExcel() {
       fmtTime(o.createdAt),
       typeLabel,
       o.table||'-',
+      o.shiftNumber ? '#'+o.shiftNumber : '-',
       statusLabel2,
       itemsStr,
       o.notes||'-',
